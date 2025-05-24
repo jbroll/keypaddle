@@ -363,33 +363,3 @@ ParsedMapCommand parseMapCommand(const String& input) {
 }
 
 #endif // MAP_PARSER_H
-
-/*
- * Key improvements in the refactored parser:
- * 
- * 1. TABLE-DRIVEN KEYWORD LOOKUP
- *    - Uses findHIDCodeForKeyword() from macro-engine.h
- *    - No more hardcoded SPECIAL_KEY mappings
- *    - Easy to add new keywords by updating KEYWORD_TABLE
- * 
- * 2. DIRECT HID CODE GENERATION
- *    - Stores HID codes directly in sequence bytes
- *    - No more UTF8_SPECIAL_KEY + code patterns
- *    - 50% space savings for special keys
- * 
- * 3. SIMPLIFIED ERROR HANDLING
- *    - Clear error messages for unknown tokens
- *    - Consistent validation throughout
- * 
- * 4. MAINTAINABILITY
- *    - Single source of truth for keyword mappings
- *    - No duplicate lookup tables
- *    - Easy to extend with new functionality
- * 
- * Example parsing results:
- *   "MAP 1 F1"              → [0x3A] (direct KEY_F1 code)
- *   "MAP 2 CTRL+C"          → [0x1A, 'c', 0x1E] (press ctrl, c, release ctrl)  
- *   "MAP 3 \"hello\""       → ['h','e','l','l','o'] (direct characters)
- *   "MAP 4 UP DOWN"         → [0xDA, 0xD9] (direct arrow key codes)
- *   "MAP 5 +SHIFT \"HI\" -SHIFT" → [0x1C, 'H', 'I', 0x05] (explicit modifiers)
- */

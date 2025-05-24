@@ -48,47 +48,46 @@
 struct KeywordMapping {
   const char* keyword;
   uint8_t hidCode;
-  const char* displayName;  // For decompiler
 };
 
 // Table-driven keyword to HID code mapping
-// This replaces the old SPECIAL_KEYS system entirely
+// First entry for each HID code is the preferred display name
 const KeywordMapping KEYWORD_TABLE[] PROGMEM = {
   // Function keys
-  {"F1",        KEY_F1,         "F1"},
-  {"F2",        KEY_F2,         "F2"},
-  {"F3",        KEY_F3,         "F3"},
-  {"F4",        KEY_F4,         "F4"},
-  {"F5",        KEY_F5,         "F5"},
-  {"F6",        KEY_F6,         "F6"},
-  {"F7",        KEY_F7,         "F7"},
-  {"F8",        KEY_F8,         "F8"},
-  {"F9",        KEY_F9,         "F9"},
-  {"F10",       KEY_F10,        "F10"},
-  {"F11",       KEY_F11,        "F11"},
-  {"F12",       KEY_F12,        "F12"},
+  {"F1",        KEY_F1},
+  {"F2",        KEY_F2},
+  {"F3",        KEY_F3},
+  {"F4",        KEY_F4},
+  {"F5",        KEY_F5},
+  {"F6",        KEY_F6},
+  {"F7",        KEY_F7},
+  {"F8",        KEY_F8},
+  {"F9",        KEY_F9},
+  {"F10",       KEY_F10},
+  {"F11",       KEY_F11},
+  {"F12",       KEY_F12},
   
   // Arrow keys
-  {"UP",        KEY_UP_ARROW,   "UP"},
-  {"DOWN",      KEY_DOWN_ARROW, "DOWN"},
-  {"LEFT",      KEY_LEFT_ARROW, "LEFT"},
-  {"RIGHT",     KEY_RIGHT_ARROW,"RIGHT"},
+  {"UP",        KEY_UP_ARROW},
+  {"DOWN",      KEY_DOWN_ARROW},
+  {"LEFT",      KEY_LEFT_ARROW},
+  {"RIGHT",     KEY_RIGHT_ARROW},
   
   // Navigation
-  {"HOME",      KEY_HOME,       "HOME"},
-  {"END",       KEY_END,        "END"},
-  {"PAGEUP",    KEY_PAGE_UP,    "PAGE_UP"},
-  {"PAGEDOWN",  KEY_PAGE_DOWN,  "PAGE_DOWN"},
-  {"DELETE",    KEY_DELETE,     "DELETE"},
-  {"DEL",       KEY_DELETE,     "DELETE"},
+  {"HOME",      KEY_HOME},
+  {"END",       KEY_END},
+  {"PAGEUP",    KEY_PAGE_UP},
+  {"PAGEDOWN",  KEY_PAGE_DOWN},
+  {"DELETE",    KEY_DELETE},
+  {"DEL",       KEY_DELETE},      // Alias - will display as DELETE (first entry)
   
   // Special keys that map to our control codes
-  {"ENTER",     UTF8_ENTER,     "ENTER"},
-  {"TAB",       UTF8_TAB,       "TAB"},
-  {"ESC",       UTF8_ESCAPE,    "ESC"},
-  {"ESCAPE",    UTF8_ESCAPE,    "ESC"},
-  {"BACKSPACE", UTF8_BACKSPACE, "BACKSPACE"},
-  {"SPACE",     ' ',            "SPACE"},
+  {"ENTER",     UTF8_ENTER},
+  {"TAB",       UTF8_TAB},
+  {"ESC",       UTF8_ESCAPE},
+  {"ESCAPE",    UTF8_ESCAPE},     // Alias - will display as ESC (first entry)
+  {"BACKSPACE", UTF8_BACKSPACE},
+  {"SPACE",     ' '},
 };
 
 const int KEYWORD_TABLE_SIZE = sizeof(KEYWORD_TABLE) / sizeof(KeywordMapping);
@@ -109,13 +108,14 @@ uint8_t findHIDCodeForKeyword(const String& keyword) {
   return 0; // Not found
 }
 
-// Find display name for HID code (used by decompiler)
-const char* findDisplayNameForHID(uint8_t hidCode) {
+// Find keyword for HID code (used by decompiler)
+// Returns first matching entry, which is the preferred display name
+const char* findKeywordForHID(uint8_t hidCode) {
   for (int i = 0; i < KEYWORD_TABLE_SIZE; i++) {
     KeywordMapping entry;
     memcpy_P(&entry, &KEYWORD_TABLE[i], sizeof(KeywordMapping));
     if (entry.hidCode == hidCode) {
-      return entry.displayName;
+      return entry.keyword;  // First match is preferred display name
     }
   }
   return nullptr; // Not found
@@ -277,11 +277,11 @@ String decodeUTF8Macro(const uint8_t* bytes, uint16_t length) {
             i++;
           }
         } else {
-          // Check if it's a known HID code with a display name
-          const char* displayName = findDisplayNameForHID(b);
-          if (displayName) {
+          // Check if it's a known HID code with a keyword
+          const char* keyword = findKeywordForHID(b);
+          if (keyword) {
             result += F("[");
-            result += displayName;
+            result += keyword;
             result += F("]");
           } else {
             // Unknown byte - show as hex
@@ -337,40 +337,3 @@ void initializeMacroEngine() {
 }
 
 #endif // MACRO_ENGINE_H
-
-/*
- * Key improvements in this refactored version:
- * 
- * 1. ELIMINATED SPECIAL KEY SYSTEM
- *    - No more UTF8_SPECIAL_KEY + code (2 bytes)
- *    - Direct HID codes stored in macro bytes (1 byte)
- *    - 50% space savings for special keys
- * 
- * 2. TABLE-DRIVEN COMPILATION/DECOMPILATION
- *    - Single KEYWORD_TABLE drives both parser and decompiler
- *    - Easy to add new keywords - just add to table
- *    - No long chains of if/then statements
- * 
- * 3. INTELLIGENT STRING RECOGNITION
- *    - Decompiler recognizes sequences of regular characters
- *    - Presents them as quoted strings: "hello world"
- *    - Handles escape sequences properly
- *    - Single characters shown unquoted when appropriate
- * 
- * 4. SIMPLIFIED EXECUTION
- *    - Eliminated lookup tables and special case handling
- *    - Direct byte-to-HID mapping for most keys
- *    - Only modifier operations need special handling
- * 
- * 5. MAINTAINABILITY
- *    - All keyword mappings in one place
- *    - Consistent naming and organization
- *    - Easy to extend with new keys
- * 
- * Example outputs from decompiler:
- *   "hello@domain.com"           // String sequence
- *   [CTRL+C]                     // Atomic combination  
- *   [+SHIFT] "HELLO" [-SHIFT]    // Explicit modifiers with text
- *   [F1] [UP] [ENTER]           // Individual special keys
- *   "Username: " [TAB] "password" [ENTER]  // Mixed sequence
- */
