@@ -75,8 +75,8 @@ void cmdShow(const char* args) {
       // Down macro
       Serial.print(i);
       Serial.print(F(" DOWN: "));
-      if (switches[i].downMacro && strlen(switches[i].downMacro) > 0) {
-        String readable = decodeUTF8Macro((const uint8_t*)switches[i].downMacro, strlen(switches[i].downMacro));
+      if (macros[i].downMacro && strlen(macros[i].downMacro) > 0) {
+        String readable = decodeUTF8Macro((const uint8_t*)macros[i].downMacro, strlen(macros[i].downMacro));
         Serial.println(readable);
       } else {
         Serial.println();
@@ -85,8 +85,8 @@ void cmdShow(const char* args) {
       // Up macro
       Serial.print(i);
       Serial.print(F(" UP: "));
-      if (switches[i].upMacro && strlen(switches[i].upMacro) > 0) {
-        String readable = decodeUTF8Macro((const uint8_t*)switches[i].upMacro, strlen(switches[i].upMacro));
+      if (macros[i].upMacro && strlen(macros[i].upMacro) > 0) {
+        String readable = decodeUTF8Macro((const uint8_t*)macros[i].upMacro, strlen(macros[i].upMacro));
         Serial.println(readable);
       } else {
         Serial.println();
@@ -110,7 +110,7 @@ void cmdShow(const char* args) {
     isUp = true;
   }
   
-  const char* macro = isUp ? switches[key].upMacro : switches[key].downMacro;
+  const char* macro = isUp ? macros[key].upMacro : macros[key].downMacro;
   
   Serial.print(F("Key "));
   Serial.print(key);
@@ -139,7 +139,7 @@ void cmdMap(const char* fullCommand) {
   bool isUp = parsed.isUpEvent;
   
   // Free existing macro
-  char** target = isUp ? &switches[key].upMacro : &switches[key].downMacro;
+  char** target = isUp ? &macros[key].upMacro : &macros[key].downMacro;
   if (*target) {
     free(*target);
     *target = nullptr;
@@ -176,7 +176,7 @@ void cmdClear(const char* args) {
     isUp = true;
   }
   
-  char** target = isUp ? &switches[key].upMacro : &switches[key].downMacro;
+  char** target = isUp ? &macros[key].upMacro : &macros[key].downMacro;
   
   if (*target) {
     free(*target);

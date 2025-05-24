@@ -117,8 +117,8 @@ ParsedMapCommand parseMapCommand(const String& input) {
   }
   
   result.keyIndex = keyStr.toInt();
-  if (result.keyIndex >= MAX_KEYS) {
-    result.errorMessage = "Key index must be 0-" + String(MAX_KEYS - 1);
+  if (result.keyIndex >= MAX_SWITCHES) {
+    result.errorMessage = "Key index must be 0-" + String(MAX_SWITCHES - 1);
     return result;
   }
   

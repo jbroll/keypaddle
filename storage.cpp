@@ -1,10 +1,10 @@
 /*
  * UTF-8+ Storage System Implementation
  * 
- * Manages 24 switches with up/down macro pairs
- * EEPROM format: 24 pairs of \0 terminated strings
+ * EEPROM format: MAX_SWITCHES pairs of \0 terminated strings
  */
 
+#include "config.h"
 #include "storage.h"
 #include <EEPROM.h>
 
@@ -12,8 +12,7 @@
 // SHARED DATA STRUCTURE
 //==============================================================================
 
-// Array of 24 switches, each with up/down macro strings
-SwitchMacros switches[MAX_SWITCHES];
+SwitchMacros macros[MAX_SWITCHES];
 
 //==============================================================================
 // PRIVATE HELPER FUNCTIONS
@@ -86,8 +85,8 @@ uint16_t writeStringToEEPROM(uint16_t offset, const char* str) {
 void setupStorage() {
   // Initialize all switch macros to nullptr
   for (int i = 0; i < MAX_SWITCHES; i++) {
-    switches[i].downMacro = nullptr;
-    switches[i].upMacro = nullptr;
+    macros[i].downMacro = nullptr;
+    macros[i].upMacro = nullptr;
   }
 }
 
@@ -103,8 +102,8 @@ bool loadFromStorage() {
   
   // Clear existing macros
   for (int i = 0; i < MAX_SWITCHES; i++) {
-    freeMacroString(switches[i].downMacro);
-    freeMacroString(switches[i].upMacro);
+    freeMacroString(macros[i].downMacro);
+    freeMacroString(macros[i].upMacro);
   }
   
   // Read 24 pairs of \0 terminated strings
@@ -115,12 +114,12 @@ bool loadFromStorage() {
     // Read down macro
     offset = readStringFromEEPROM(offset, buffer, sizeof(buffer));
     if (offset == 0) return false; // Read error
-    switches[i].downMacro = allocateMacroString(buffer);
+    macros[i].downMacro = allocateMacroString(buffer);
     
     // Read up macro  
     offset = readStringFromEEPROM(offset, buffer, sizeof(buffer));
     if (offset == 0) return false; // Read error
-    switches[i].upMacro = allocateMacroString(buffer);
+    macros[i].upMacro = allocateMacroString(buffer);
   }
   
   return true;
@@ -136,11 +135,11 @@ bool saveToStorage() {
   
   for (int i = 0; i < MAX_SWITCHES; i++) {
     // Write down macro (empty string if nullptr)
-    offset = writeStringToEEPROM(offset, switches[i].downMacro);
+    offset = writeStringToEEPROM(offset, macros[i].downMacro);
     if (offset >= EEPROM.length()) return false; // Out of space
     
     // Write up macro (empty string if nullptr)
-    offset = writeStringToEEPROM(offset, switches[i].upMacro);  
+    offset = writeStringToEEPROM(offset, macros[i].upMacro);  
     if (offset >= EEPROM.length()) return false; // Out of space
   }
   

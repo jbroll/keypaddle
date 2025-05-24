@@ -56,16 +56,6 @@ struct ModifierInfo {
   uint8_t multiBit;
 };
 
-struct ParsedMapCommand {
-  bool valid;
-  uint8_t keyIndex;
-  String event;          // "down", "up", or "" (default down)
-  String utf8Sequence;   // Generated UTF-8+ encoded macro
-  String errorMessage;
-  
-  ParsedMapCommand() : valid(false), keyIndex(0) {}
-};
-
 //==============================================================================
 // EXTERNAL TABLE DECLARATIONS
 //==============================================================================

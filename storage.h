@@ -1,8 +1,7 @@
 /*
  * UTF-8+ Storage System Interface
  * 
- * Manages 24 switches, each with up and down macro strings
- * Simple interface: setup, load, save, and shared data structure
+ * Manages the macros, each with up and down strings
  */
 
 #ifndef STORAGE_H
@@ -10,11 +9,12 @@
 
 #include <Arduino.h>
 
+#include "config.h"
+
 //==============================================================================
 // CONFIGURATION
 //==============================================================================
 
-#define MAX_SWITCHES 24
 #define EEPROM_MAGIC_VALUE 0xCAFE2025
 #define EEPROM_MAGIC_ADDR 0
 #define EEPROM_DATA_START 4
@@ -32,8 +32,7 @@ struct SwitchMacros {
 // SHARED DATA (extern declaration)
 //==============================================================================
 
-// Array of 24 switches, each with up/down macros
-extern SwitchMacros switches[MAX_SWITCHES];
+extern SwitchMacros macros[MAX_SWITCHES];
 
 //==============================================================================
 // STORAGE INTERFACE
@@ -42,10 +41,10 @@ extern SwitchMacros switches[MAX_SWITCHES];
 // Initialize storage system
 void setupStorage();
 
-// Load 24 switch macro pairs from EEPROM into switches[] array
+// Load the switch macro pairs from EEPROM into macros[] array
 bool loadFromStorage();
 
-// Save 24 switch macro pairs from switches[] array to EEPROM  
+// Save the switch macro pairs from macros[] array to EEPROM  
 bool saveToStorage();
 
 #endif // STORAGE_H

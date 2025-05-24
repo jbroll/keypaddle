@@ -7,6 +7,8 @@
 #include <Arduino.h>
 #include <Keyboard.h>
 
+#include "config.h"
+
 // System modules using clean interface design
 #include "switches-teensy.h"     // Hardware interface and switch handling
 #include "macro-engine.h"        // UTF-8+ encoding/execution engine
@@ -24,9 +26,6 @@
 
 uint32_t lastSwitchState = 0;
 bool systemReady = false;
-
-// Global storage (from storage.h)
-extern SwitchMacros switches[MAX_SWITCHES];
 
 void setup() {
   // Initialize serial communication
@@ -103,10 +102,10 @@ void handleKeyEvent(uint8_t keyIndex, uint8_t event) {
   
   // Get the appropriate macro string
   char* macroString = nullptr;
-  if (event == PRESSED && switches[keyIndex].downMacro) {
-    macroString = switches[keyIndex].downMacro;
-  } else if (event == RELEASED && switches[keyIndex].upMacro) {
-    macroString = switches[keyIndex].upMacro;
+  if (event == PRESSED && macros[keyIndex].downMacro) {
+    macroString = macros[keyIndex].downMacro;
+  } else if (event == RELEASED && macros[keyIndex].upMacro) {
+    macroString = macros[keyIndex].upMacro;
   }
   
   // Execute macro if one exists

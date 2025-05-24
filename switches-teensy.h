@@ -15,16 +15,9 @@
 
 #include <Arduino.h>
 
-//==============================================================================
-// CONFIGURATION
-//==============================================================================
+#include "config.h"
 
-#define MAX_SWITCHES 24
 #define DEBOUNCE_MS 50
-
-//==============================================================================
-// PIN MAPPING STRUCTURE
-//==============================================================================
 
 // Pin to Port/Bit mapping based on Teensy 2.0 pinout
 // Arduino Pin → Port.Bit mapping
@@ -35,10 +28,6 @@ struct PinMapping {
   uint8_t bit_mask;              // Bit mask for this pin
   uint8_t arduino_pin;           // Arduino pin number
 };
-
-//==============================================================================
-// PORT-OPTIMIZED ACCESS CLASS
-//==============================================================================
 
 // Fast port reading using direct register access
 class TeensySwitches {
