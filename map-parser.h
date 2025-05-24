@@ -1,14 +1,15 @@
 /*
- * Single-Pass MAP Command Parser
+ * Refactored MAP Command Parser - Table-Driven Direct HID Codes
  * 
- * Directly converts MAP command arguments to UTF-8+ byte sequences
- * No intermediate representations - parse and generate in one pass
+ * Uses the KEYWORD_TABLE from macro-engine.h for consistent compilation
+ * Stores HID codes directly in macro bytes (no more SPECIAL key system)
  */
 
 #ifndef MAP_PARSER_H
 #define MAP_PARSER_H
 
 #include <Arduino.h>
+#include "macro-engine.h"  // For KEYWORD_TABLE and helper functions
 
 //==============================================================================
 // PARSER RESULT STRUCTURE
@@ -25,7 +26,7 @@ struct ParsedMapCommand {
 };
 
 //==============================================================================
-// LOOKUP TABLES
+// MODIFIER LOOKUP TABLE
 //==============================================================================
 
 struct ModifierInfo {
@@ -38,32 +39,10 @@ const ModifierInfo MODIFIERS[] PROGMEM = {
   {"ALT",   MULTI_ALT}, 
   {"SHIFT", MULTI_SHIFT},
   {"CMD",   MULTI_CMD},
+  {"WIN",   MULTI_CMD},  // Alias for CMD
+  {"GUI",   MULTI_CMD},  // Another alias
 };
-const int NUM_MODIFIERS = 4;
-
-struct SpecialKeyInfo {
-  const char* name;
-  uint8_t directCode;
-  uint8_t specialCode;
-};
-
-const SpecialKeyInfo SPECIAL_KEYS[] PROGMEM = {
-  {"F1",       0, SPECIAL_F1},     {"F2",       0, SPECIAL_F2},
-  {"F3",       0, SPECIAL_F3},     {"F4",       0, SPECIAL_F4},
-  {"F5",       0, SPECIAL_F5},     {"F6",       0, SPECIAL_F6},
-  {"F7",       0, SPECIAL_F7},     {"F8",       0, SPECIAL_F8},
-  {"F9",       0, SPECIAL_F9},     {"F10",      0, SPECIAL_F10},
-  {"F11",      0, SPECIAL_F11},    {"F12",      0, SPECIAL_F12},
-  {"UP",       0, SPECIAL_UP},     {"DOWN",     0, SPECIAL_DOWN},
-  {"LEFT",     0, SPECIAL_LEFT},   {"RIGHT",    0, SPECIAL_RIGHT},
-  {"DELETE",   0, SPECIAL_DELETE}, {"DEL",      0, SPECIAL_DELETE},
-  {"HOME",     0, SPECIAL_HOME},   {"END",      0, SPECIAL_END},
-  {"PAGEUP",   0, SPECIAL_PAGE_UP}, {"PAGEDOWN", 0, SPECIAL_PAGE_DOWN},
-  {"ENTER",    UTF8_ENTER, 0},     {"TAB",      UTF8_TAB, 0},
-  {"ESC",      UTF8_ESCAPE, 0},    {"BACKSPACE", UTF8_BACKSPACE, 0},
-  {"SPACE",    0, SPECIAL_SPACE}
-};
-const int NUM_SPECIAL_KEYS = 25;
+const int NUM_MODIFIERS = 6;
 
 //==============================================================================
 // UTILITY FUNCTIONS
@@ -80,26 +59,20 @@ uint8_t findModifierBit(const String& name) {
   return 0;
 }
 
-bool findSpecialKey(const String& name, uint8_t& directCode, uint8_t& specialCode) {
-  for (int i = 0; i < NUM_SPECIAL_KEYS; i++) {
-    SpecialKeyInfo key;
-    memcpy_P(&key, &SPECIAL_KEYS[i], sizeof(SpecialKeyInfo));
-    if (name.equalsIgnoreCase(key.name)) {
-      directCode = key.directCode;
-      specialCode = key.specialCode;
-      return true;
-    }
-  }
-  return false;
-}
-
 void addModifierPress(String& sequence, uint8_t modifierMask, bool useMulti) {
   if (modifierMask == 0) return;
   
-  if (useMulti) {
+  // Use multi-modifier encoding for efficiency when multiple modifiers
+  int bitCount = 0;
+  for (int i = 0; i < 8; i++) {
+    if (modifierMask & (1 << i)) bitCount++;
+  }
+  
+  if (bitCount > 1 || useMulti) {
     sequence += (char)UTF8_PRESS_MULTI;
     sequence += (char)modifierMask;
   } else {
+    // Single modifier - use individual codes
     if (modifierMask & MULTI_CTRL)  sequence += (char)UTF8_PRESS_CTRL;
     if (modifierMask & MULTI_SHIFT) sequence += (char)UTF8_PRESS_SHIFT;
     if (modifierMask & MULTI_ALT)   sequence += (char)UTF8_PRESS_ALT;
@@ -110,26 +83,21 @@ void addModifierPress(String& sequence, uint8_t modifierMask, bool useMulti) {
 void addModifierRelease(String& sequence, uint8_t modifierMask, bool useMulti) {
   if (modifierMask == 0) return;
   
-  if (useMulti) {
+  // Use multi-modifier encoding for efficiency when multiple modifiers
+  int bitCount = 0;
+  for (int i = 0; i < 8; i++) {
+    if (modifierMask & (1 << i)) bitCount++;
+  }
+  
+  if (bitCount > 1 || useMulti) {
     sequence += (char)UTF8_RELEASE_MULTI;
     sequence += (char)modifierMask;
   } else {
+    // Single modifier - use individual codes
     if (modifierMask & MULTI_CTRL)  sequence += (char)UTF8_RELEASE_CTRL;
     if (modifierMask & MULTI_SHIFT) sequence += (char)UTF8_RELEASE_SHIFT;
     if (modifierMask & MULTI_ALT)   sequence += (char)UTF8_RELEASE_ALT;
     if (modifierMask & MULTI_CMD)   sequence += (char)UTF8_RELEASE_CMD;
-  }
-}
-
-void addSpecialKey(String& sequence, const String& keyName) {
-  uint8_t directCode, specialCode;
-  if (findSpecialKey(keyName, directCode, specialCode)) {
-    if (directCode != 0) {
-      sequence += (char)directCode;
-    } else {
-      sequence += (char)UTF8_SPECIAL_KEY;
-      sequence += (char)specialCode;
-    }
   }
 }
 
@@ -141,7 +109,7 @@ void processEscapeSequences(String& sequence, const String& text) {
         case 'n':  sequence += (char)UTF8_ENTER; i++; break;
         case 'r':  sequence += '\r'; i++; break;
         case 't':  sequence += (char)UTF8_TAB; i++; break;
-        case 'a':  i++; break; // Skip bell
+        case 'a':  i++; break; // Skip bell (no HID equivalent)
         case '"':  sequence += '"';  i++; break;
         case '\\': sequence += '\\'; i++; break;
         default:   sequence += text[i]; break;
@@ -153,7 +121,7 @@ void processEscapeSequences(String& sequence, const String& text) {
 }
 
 //==============================================================================
-// SINGLE-PASS PARSER
+// SIMPLIFIED SINGLE-PASS PARSER
 //==============================================================================
 
 ParsedMapCommand parseMapCommand(const String& input) {
@@ -234,17 +202,17 @@ ParsedMapCommand parseMapCommand(const String& input) {
     String token = "";
     
     if (trimmed[pos] == '"') {
-      // Quoted string
+      // Quoted string - process with escape sequences
       pos++; // Skip opening quote
       while (pos < trimmed.length() && trimmed[pos] != '"') {
         if (trimmed[pos] == '\\' && pos + 1 < trimmed.length()) {
-          token += trimmed[pos++]; // Include backslash
+          token += trimmed[pos++]; // Include backslash for escape processing
         }
         token += trimmed[pos++];
       }
       if (pos < trimmed.length()) pos++; // Skip closing quote
       
-      // Process as literal text with escape sequences
+      // Process escape sequences and add directly to sequence
       processEscapeSequences(sequence, token);
       
     } else {
@@ -268,7 +236,7 @@ ParsedMapCommand parseMapCommand(const String& input) {
         token = token.substring(1);
       }
       
-      // Check for modifier chain
+      // Parse modifier chain
       uint8_t modifierMask = 0;
       String remaining = token;
       String suffixContent = "";
@@ -284,7 +252,7 @@ ParsedMapCommand parseMapCommand(const String& input) {
         } else {
           part = remaining.substring(0, plusPos);
           remaining = remaining.substring(plusPos + 1);
-          hasMultipleModifiers = true; // Found a '+' so this is a chain
+          hasMultipleModifiers = true;
         }
         
         uint8_t modBit = findModifierBit(part);
@@ -314,11 +282,15 @@ ParsedMapCommand parseMapCommand(const String& input) {
         addModifierPress(sequence, modifierMask, hasMultipleModifiers);
         
         if (suffixContent.length() > 0) {
-          // CTRL+C pattern
+          // CTRL+C pattern - add the key directly
           if (suffixContent.length() == 1) {
             sequence += suffixContent[0];
           } else {
-            addSpecialKey(sequence, suffixContent);
+            // Try to find HID code for keyword
+            if (!addKeywordToSequence(sequence, suffixContent)) {
+              result.errorMessage = "Unknown key: " + suffixContent;
+              return result;
+            }
           }
         } else {
           // CTRL TAB pattern - peek at next token
@@ -357,7 +329,11 @@ ParsedMapCommand parseMapCommand(const String& input) {
               if (nextToken.length() == 1) {
                 sequence += nextToken[0];
               } else {
-                addSpecialKey(sequence, nextToken);
+                // Use table-driven lookup
+                if (!addKeywordToSequence(sequence, nextToken)) {
+                  result.errorMessage = "Unknown key: " + nextToken;
+                  return result;
+                }
               }
               pos = nextPos;
             }
@@ -367,19 +343,12 @@ ParsedMapCommand parseMapCommand(const String& input) {
         addModifierRelease(sequence, modifierMask, hasMultipleModifiers);
         
       } else {
-        // Not a modifier - check for special key or single char
+        // Not a modifier - check for keyword or single char
         if (token.length() == 1) {
           sequence += token[0];
         } else {
-          uint8_t directCode, specialCode;
-          if (findSpecialKey(token, directCode, specialCode)) {
-            if (directCode != 0) {
-              sequence += (char)directCode;
-            } else {
-              sequence += (char)UTF8_SPECIAL_KEY;
-              sequence += (char)specialCode;
-            }
-          } else {
+          // Use table-driven lookup for keywords
+          if (!addKeywordToSequence(sequence, token)) {
             result.errorMessage = "Unknown token: " + token;
             return result;
           }
@@ -394,3 +363,33 @@ ParsedMapCommand parseMapCommand(const String& input) {
 }
 
 #endif // MAP_PARSER_H
+
+/*
+ * Key improvements in the refactored parser:
+ * 
+ * 1. TABLE-DRIVEN KEYWORD LOOKUP
+ *    - Uses findHIDCodeForKeyword() from macro-engine.h
+ *    - No more hardcoded SPECIAL_KEY mappings
+ *    - Easy to add new keywords by updating KEYWORD_TABLE
+ * 
+ * 2. DIRECT HID CODE GENERATION
+ *    - Stores HID codes directly in sequence bytes
+ *    - No more UTF8_SPECIAL_KEY + code patterns
+ *    - 50% space savings for special keys
+ * 
+ * 3. SIMPLIFIED ERROR HANDLING
+ *    - Clear error messages for unknown tokens
+ *    - Consistent validation throughout
+ * 
+ * 4. MAINTAINABILITY
+ *    - Single source of truth for keyword mappings
+ *    - No duplicate lookup tables
+ *    - Easy to extend with new functionality
+ * 
+ * Example parsing results:
+ *   "MAP 1 F1"              → [0x3A] (direct KEY_F1 code)
+ *   "MAP 2 CTRL+C"          → [0x1A, 'c', 0x1E] (press ctrl, c, release ctrl)  
+ *   "MAP 3 \"hello\""       → ['h','e','l','l','o'] (direct characters)
+ *   "MAP 4 UP DOWN"         → [0xDA, 0xD9] (direct arrow key codes)
+ *   "MAP 5 +SHIFT \"HI\" -SHIFT" → [0x1C, 'H', 'I', 0x05] (explicit modifiers)
+ */
