@@ -1,7 +1,8 @@
 /*
- * MAP Command Parser Interface
+ * MAP Command Parser Interface - Clean char* based design
  * 
- * Public interface for parsing MAP commands into UTF-8+ sequences
+ * Parses MAP commands into UTF-8+ sequences using stack allocation
+ * and returns strdup'd results for direct assignment to macros[]
  */
 
 #ifndef MAP_PARSER_H
@@ -9,28 +10,30 @@
 
 #include "map-parser-tables.h"
 
-struct ParsedMapCommand {
-  bool valid;
-  uint8_t keyIndex;
-  String event;          // "down", "up", or "" (default down)
-  String utf8Sequence;   // Generated UTF-8+ encoded macro
-  String errorMessage;
-  
-  ParsedMapCommand() : valid(false), keyIndex(0) {}
-};
+//==============================================================================
+// CONFIGURATION
+//==============================================================================
 
+#define MAX_MACRO_LENGTH 256
+
+//==============================================================================
+// RESULT STRUCTURE
+//==============================================================================
+
+struct MapParseResult {
+  uint8_t keyIndex;          // Parsed key index (0-23)
+  bool isUpEvent;            // true for "up", false for "down" (default)
+  char* utf8Sequence;        // strdup'd UTF-8+ sequence, caller owns, never nullptr
+  const char* error;         // nullptr on success, PROGMEM string on error
+};
 
 //==============================================================================
 // PARSER INTERFACE
 //==============================================================================
 
 // Main parser function - converts MAP command to UTF-8+ sequence
-ParsedMapCommand parseMapCommand(const String& input);
-
-// Parser utility functions (used internally but may be useful elsewhere)
-void addModifierPress(String& sequence, uint8_t modifierMask, bool useMulti);
-void addModifierRelease(String& sequence, uint8_t modifierMask, bool useMulti);
-void processEscapeSequences(String& sequence, const String& text);
-bool addKeywordToSequence(String& sequence, const String& keyword);
+// Returns strdup'd result that should be assigned directly to macros[] array
+// On error, utf8Sequence is nullptr and error points to PROGMEM string
+MapParseResult parseMapCommand(const char* input);
 
 #endif // MAP_PARSER_H

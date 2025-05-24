@@ -125,13 +125,11 @@ void cmdShow(const char* args) {
 }
 
 void cmdMap(const char* fullCommand) {
-  // Need to pass full command to parser since it expects "MAP ..." format
-  String cmdStr = String(fullCommand);
-  ParsedMapCommand parsed = parseMapCommand(cmdStr);
+  MapParseResult parsed = parseMapCommand(fullCommand);
   
-  if (parsed.error != PARSE_SUCCESS) {
+  if (parsed.error != nullptr) {
     Serial.print(F("Parse error: "));
-    Serial.println(parsed.errorMessage);
+    Serial.println(parsed.error);
     return;
   }
   
@@ -142,17 +140,8 @@ void cmdMap(const char* fullCommand) {
   char** target = isUp ? &macros[key].upMacro : &macros[key].downMacro;
   if (*target) {
     free(*target);
-    *target = nullptr;
   }
-  
-  // Store new macro
-  if (parsed.utf8Sequence.length() > 0) {
-    *target = strdup(parsed.utf8Sequence.c_str());
-    if (!*target) {
-      Serial.println(F("Memory allocation failed"));
-      return;
-    }
-  }
+  *target = parsed.utf8Sequence;
   
   Serial.println(F("OK"));
 }
