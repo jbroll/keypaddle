@@ -70,15 +70,9 @@ extern const int NUM_MODIFIERS;
 // SHARED LOOKUP FUNCTIONS
 //==============================================================================
 
-// Find HID code for keyword (used by parser)
-uint8_t findHIDCodeForKeyword(const String& keyword);
-
-// Find keyword for HID code (used by decompiler)
-// Returns first matching entry, which is the preferred display name
+uint8_t findHIDCodeForKeyword(const char* keyword);
+uint8_t findModifierBit(const char* name);
 const char* findKeywordForHID(uint8_t hidCode);
-
-// Find modifier bit mask for name
-uint8_t findModifierBit(const String& name);
 
 //==============================================================================
 // SHARED UTILITY FUNCTIONS

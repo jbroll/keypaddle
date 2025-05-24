@@ -72,15 +72,23 @@ const int NUM_MODIFIERS = 6;
 // SHARED LOOKUP FUNCTIONS
 //==============================================================================
 
-uint8_t findHIDCodeForKeyword(const String& keyword) {
+uint8_t findHIDCodeForKeyword(const char* keyword) {
   for (int i = 0; i < KEYWORD_TABLE_SIZE; i++) {
     KeywordMapping entry;
     memcpy_P(&entry, &KEYWORD_TABLE[i], sizeof(KeywordMapping));
-    if (keyword.equalsIgnoreCase(entry.keyword)) {
+    if (strcasecmp(keyword, entry.keyword) == 0) {  // Pure C comparison
       return entry.hidCode;
     }
   }
-  return 0; // Not found
+  return 0;
+}
+
+static uint8_t findModifierBit(const char* name) {
+  if (strcasecmp(name, "CTRL") == 0) return MULTI_CTRL;
+  if (strcasecmp(name, "SHIFT") == 0) return MULTI_SHIFT;
+  if (strcasecmp(name, "ALT") == 0) return MULTI_ALT;
+  if (strcasecmp(name, "WIN") == 0 || strcasecmp(name, "GUI") == 0) return MULTI_CMD;
+  return 0;
 }
 
 const char* findKeywordForHID(uint8_t hidCode) {
@@ -92,17 +100,6 @@ const char* findKeywordForHID(uint8_t hidCode) {
     }
   }
   return nullptr; // Not found
-}
-
-uint8_t findModifierBit(const String& name) {
-  for (int i = 0; i < NUM_MODIFIERS; i++) {
-    ModifierInfo mod;
-    memcpy_P(&mod, &MODIFIERS[i], sizeof(ModifierInfo));
-    if (name.equalsIgnoreCase(mod.name)) {
-      return mod.multiBit;
-    }
-  }
-  return 0;
 }
 
 //==============================================================================

@@ -165,14 +165,6 @@ static bool parseToken(const char** input, char* token, int maxLen) {
   return len > 0;
 }
 
-static uint8_t findModifierBit(const char* name) {
-  if (strcasecmp(name, "CTRL") == 0) return MULTI_CTRL;
-  if (strcasecmp(name, "SHIFT") == 0) return MULTI_SHIFT;
-  if (strcasecmp(name, "ALT") == 0) return MULTI_ALT;
-  if (strcasecmp(name, "WIN") == 0 || strcasecmp(name, "GUI") == 0) return MULTI_CMD;
-  return 0;
-}
-
 static bool addKeywordToBuffer(uint8_t* buffer, int* pos, const char* keyword) {
   uint8_t hidCode = findHIDCodeForKeyword(keyword);
   if (hidCode != 0) {
