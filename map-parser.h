@@ -37,7 +37,7 @@ const ModifierInfo MODIFIERS[] PROGMEM = {
   {"CTRL",  MULTI_CTRL},
   {"ALT",   MULTI_ALT}, 
   {"SHIFT", MULTI_SHIFT},
-  {"CMD",   MULTI_GUI},
+  {"CMD",   MULTI_CMD},
 };
 const int NUM_MODIFIERS = 4;
 
@@ -103,7 +103,7 @@ void addModifierPress(String& sequence, uint8_t modifierMask, bool useMulti) {
     if (modifierMask & MULTI_CTRL)  sequence += (char)UTF8_PRESS_CTRL;
     if (modifierMask & MULTI_SHIFT) sequence += (char)UTF8_PRESS_SHIFT;
     if (modifierMask & MULTI_ALT)   sequence += (char)UTF8_PRESS_ALT;
-    if (modifierMask & MULTI_GUI)   sequence += (char)UTF8_PRESS_GUI;
+    if (modifierMask & MULTI_CMD)   sequence += (char)UTF8_PRESS_CMD;
   }
 }
 
@@ -117,7 +117,7 @@ void addModifierRelease(String& sequence, uint8_t modifierMask, bool useMulti) {
     if (modifierMask & MULTI_CTRL)  sequence += (char)UTF8_RELEASE_CTRL;
     if (modifierMask & MULTI_SHIFT) sequence += (char)UTF8_RELEASE_SHIFT;
     if (modifierMask & MULTI_ALT)   sequence += (char)UTF8_RELEASE_ALT;
-    if (modifierMask & MULTI_GUI)   sequence += (char)UTF8_RELEASE_GUI;
+    if (modifierMask & MULTI_CMD)   sequence += (char)UTF8_RELEASE_CMD;
   }
 }
 
