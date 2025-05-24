@@ -7,10 +7,6 @@
 #include "map-parser-tables.h"
 #include <Keyboard.h>
 
-//==============================================================================
-// MACRO EXECUTION ENGINE
-//==============================================================================
-
 void executeUTF8Macro(const uint8_t* bytes, uint16_t length) {
   if (!bytes || length == 0) return;
   
@@ -69,10 +65,5 @@ void executeUTF8Macro(const uint8_t* bytes, uint16_t length) {
   }
 }
 
-//==============================================================================
-// INITIALIZATION
-//==============================================================================
-
 void initializeMacroEngine() {
-  Keyboard.begin();
 }
