@@ -171,164 +171,21 @@ public:
     
     return debounced_state;
   }
-  
-  // Get current debounced state
-  uint32_t getState() const {
-    return debounced_state;
-  }
-  
-  // Check if specific switch is pressed
-  bool isPressed(uint8_t switch_num) const {
-    if (switch_num >= num_switches) return false;
-    return (debounced_state & (1UL << switch_num)) != 0;
-  }
-  
-  // Get changes since last call
-  uint32_t getChanges() {
-    static uint32_t last_state = 0;
-    uint32_t changes = debounced_state ^ last_state;
-    last_state = debounced_state;
-    return changes;
-  }
-  
-  // Diagnostic functions
-  void printPortStates() {
-    Serial.print(F("PORTB: 0b"));
-    Serial.print(PINB, BIN);
-    Serial.print(F(" PORTC: 0b"));  
-    Serial.print(PINC, BIN);
-    Serial.print(F(" PORTD: 0b"));
-    Serial.print(PIND, BIN);
-    Serial.print(F(" PORTF: 0b"));
-    Serial.println(PINF, BIN);
-  }
-  
-  void printSwitchStates() {
-    Serial.print(F("Switches (0-"));
-    Serial.print(num_switches - 1);
-    Serial.print(F("): "));
-    
-    for (int i = num_switches - 1; i >= 0; i--) {
-      Serial.print(isPressed(i) ? '1' : '0');
-      if (i % 8 == 0 && i > 0) Serial.print(' ');
-    }
-    Serial.println();
-  }
-  
-  // Get Arduino pin number for switch index
-  uint8_t getArduinoPin(uint8_t switch_num) const {
-    if (switch_num >= num_switches) return 255;
-    return pgm_read_byte(&pin_mappings[switch_num].arduino_pin);
-  }
 };
 
 //==============================================================================
-// INTERRUPT-BASED VERSION (Advanced)
+// EXPECTED API
 //==============================================================================
 
-// Pin change interrupt support for ultra-fast response
-class TeensySwitchesInterrupt : public TeensySwitches {
-private:
-  volatile bool state_changed;
-  
-public:
-  TeensySwitchesInterrupt(uint8_t num_pins = MAX_SWITCHES) : TeensySwitches(num_pins) {
-    state_changed = false;
-  }
-  
-  void begin() {
-    TeensySwitches::begin();
-    
-    // Enable pin change interrupts for PORTB (pins 0-4, 13-15)
-    PCICR |= _BV(PCIE0);   // Enable PORTB pin change interrupts
-    PCMSK0 = 0xFF;         // Enable all PORTB pins
-    
-    // Note: PORTC, PORTD, PORTF don't have pin change interrupts on ATmega32U4
-    // Would need to use external interrupts (INT0-INT6) for some pins
-    // For full interrupt support, consider polling approach instead
-  }
-  
-  bool hasChanged() {
-    bool changed = state_changed;
-    state_changed = false;
-    return changed;
-  }
-  
-  // Call this from PCINT0_vect interrupt
-  void handlePinChangeInterrupt() {
-    state_changed = true;
-  }
-};
+// Global instance
+TeensySwitches switches;
 
-//==============================================================================
-// COMPATIBILITY FUNCTIONS
-//==============================================================================
-
-// Global instance for simple usage
-extern TeensySwitches switches;
-
-// Simple API functions
-inline void initializeSwitches(uint8_t num_switches = MAX_SWITCHES) {
-  switches = TeensySwitches(num_switches);
+void setupSwitches() {
   switches.begin();
 }
 
-inline uint32_t readSwitches() {
+uint32_t loopSwitches() {
   return switches.update();
 }
-
-inline bool isSwitchPressed(uint8_t switch_num) {
-  return switches.isPressed(switch_num);
-}
-
-inline uint32_t getSwitchChanges() {
-  return switches.getChanges();
-}
-
-//==============================================================================
-// EXAMPLE USAGE
-//==============================================================================
-
-/*
-// Basic usage:
-#include "switches-teensy.h"
-
-TeensySwitches switches(24);  // Use all 24 pins
-
-void setup() {
-  Serial.begin(115200);
-  switches.begin();
-  Serial.println("24-pin switch scanner ready");
-}
-
-void loop() {
-  uint32_t state = switches.update();
-  uint32_t changes = switches.getChanges();
-  
-  if (changes) {
-    Serial.print("Switch changes: ");
-    Serial.println(changes, BIN);
-    switches.printSwitchStates();
-  }
-  
-  delay(10);
-}
-
-// Pin mapping reference:
-// Arduino Pin → Port.Pin → Function
-// 0  → PB0 → SS           11 → PD6 → PWM/LED    
-// 1  → PB1 → SCLK         12 → PD7 → PWM
-// 2  → PB2 → MOSI         13 → PB4 → PWM        
-// 3  → PB3 → MISO         14 → PB5 → PWM
-// 4  → PB7 → PWM          15 → PB6 → PWM
-// 5  → PD0 → SCL/PWM      16 → PF7 → A0
-// 6  → PD1 → SDA          17 → PF6 → A1  
-// 7  → PD2 → RX           18 → PF5 → A2
-// 8  → PD3 → TX           19 → PF4 → A3
-// 9  → PC6 → PWM          20 → PF1 → A4
-// 10 → PC7 → PWM          21 → PF0 → A5
-//                         22 → PD4 → A6
-//                         23 → PD5 → A7
-*/
 
 #endif // SWITCHES_TEENSY_H
