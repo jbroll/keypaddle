@@ -1,24 +1,13 @@
-# test/Makefile
-
 CXX = g++
-CXXFLAGS = -I. -I.. -std=c++11 -Wall -Wextra -g
+CXXFLAGS = -std=c++11 -Wall -Wno-unused-variable -Wno-sign-compare -I. -I..
 
-# Source files from parent directory
-PARSER_SOURCES = ../macro-encode.cpp ../macro-decode.cpp ../map-parser-tables.cpp
-
-# Test executables
-TESTS = test-macro-encode-decode
-
-.PHONY: all test clean
-
-all: $(TESTS)
-
-test-macro-encode-decode: test-macro-encode-decode.cpp $(PARSER_SOURCES)
+test-roundtrip: test-roundtrip.cpp ../map-parser-tables.cpp ../macro-encode.cpp ../macro-decode.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-test: $(TESTS)
-	@echo "Running macro encode/decode tests..."
-	./test-macro-encode-decode
+test: test-roundtrip
+	./test-roundtrip
 
 clean:
-	rm -f $(TESTS)
+	rm -f test-roundtrip
+
+.PHONY: test clean
