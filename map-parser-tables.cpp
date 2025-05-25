@@ -41,6 +41,13 @@ const KeywordMapping KEYWORD_TABLE[] PROGMEM = {
   {"PAGEDOWN",  KEY_PAGE_DOWN},
   {"DELETE",    KEY_DELETE},
   {"DEL",       KEY_DELETE},      // Alias - will display as DELETE (first entry)
+  
+  // Common control keys - these map to printable characters
+  {"ENTER",     '\n'},            // Newline character
+  {"TAB",       '\t'},            // Tab character  
+  {"SPACE",     ' '},             // Space character
+  {"ESC",       0x1B},            // Escape character
+  {"BACKSPACE", 0x08},            // Backspace character
 };
 
 const int KEYWORD_TABLE_SIZE = sizeof(KEYWORD_TABLE) / sizeof(KeywordMapping);

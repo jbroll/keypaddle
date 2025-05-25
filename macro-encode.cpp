@@ -1,5 +1,5 @@
 /*
- * MAP Command Parser Implementation - Rewritten for char* efficiency
+ * MAP Command Parser Implementation - Simplified following new documentation
  * 
  * Parses MAP commands and generates UTF-8+ encoded macro sequences
  * Uses stack-allocated buffer and returns strdup'd result
@@ -12,13 +12,13 @@
 // ERROR MESSAGES IN PROGMEM
 //==============================================================================
 
-static const char ERR_INVALID_COMMAND[] PROGMEM = "Command must start with MAP";
-static const char ERR_MISSING_KEY[] PROGMEM = "Missing key index";
-static const char ERR_INVALID_KEY[] PROGMEM = "Invalid key index";
 static const char ERR_MISSING_SEQUENCE[] PROGMEM = "Missing macro sequence";
 static const char ERR_BUFFER_OVERFLOW[] PROGMEM = "Macro too long";
 static const char ERR_OUT_OF_MEMORY[] PROGMEM = "Out of memory";
 static const char ERR_UNKNOWN_TOKEN[] PROGMEM = "Unknown token";
+static const char ERR_MISSING_KEY[] PROGMEM = "No key follows modifier combination";
+static const char ERR_EMPTY_MODIFIER[] PROGMEM = "Empty modifier specification";
+static const char ERR_UNKNOWN_MODIFIER[] PROGMEM = "Unknown modifier name";
 
 //==============================================================================
 // PARSER UTILITIES
@@ -100,10 +100,11 @@ static bool processEscapeSequence(uint8_t* buffer, int* pos, const char** input)
   (*input)++; // Skip the escaped character
   
   switch (next) {
-    case 'n':  return addByte(buffer, pos, '\n');  // Use actual newline character
+    case 'n':  return addByte(buffer, pos, '\n');
     case 'r':  return addByte(buffer, pos, '\r');
-    case 't':  return addByte(buffer, pos, '\t');  // Use actual tab character
-    case 'a':  return addByte(buffer, pos, '\a');  // Use actual bell character
+    case 't':  return addByte(buffer, pos, '\t');
+    case 'a':  return addByte(buffer, pos, '\a');
+    case 'e':  return addByte(buffer, pos, 0x1B);  // Escape character
     case '"':  return addByte(buffer, pos, '"');
     case '\\': return addByte(buffer, pos, '\\');
     default:   
@@ -148,104 +149,69 @@ static bool parseToken(const char** input, char* token, int maxLen) {
   return len > 0;
 }
 
-static bool addKeywordToBuffer(uint8_t* buffer, int* pos, const char* keyword) {
-  uint8_t hidCode = findHIDCodeForKeyword(keyword);
-  if (hidCode != 0) {
-    return addByte(buffer, pos, hidCode);
+static bool addKeyToBuffer(uint8_t* buffer, int* pos, const char* keyToken) {
+  if (strlen(keyToken) == 1) {
+    // Single character - convert to lowercase for consistency
+    char ch = keyToken[0];
+    if (ch >= 'A' && ch <= 'Z') {
+      ch = ch - 'A' + 'a';
+    }
+    return addByte(buffer, pos, ch);
+  } else {
+    // Multi-character - must be keyword
+    uint8_t hidCode = findHIDCodeForKeyword(keyToken);
+    if (hidCode != 0) {
+      return addByte(buffer, pos, hidCode);
+    }
   }
   return false;
 }
 
-static bool parseModifierChain(const char* token, uint8_t* modifierMask, char* suffix, int suffixMaxLen) {
-  *modifierMask = 0;
-  suffix[0] = '\0';
-  
-  // For old-style syntax like CTRL+C, we need to find the last + and check what follows
-  const char* lastPlus = strrchr(token, '+');
-  
-  if (lastPlus && lastPlus[1] != '\0') {
-    // Check if what follows the last + is a modifier
-    const char* possibleSuffix = lastPlus + 1;
-    uint8_t testBit = findModifierBit(possibleSuffix);
-    
-    if (testBit == 0) {
-      // It's not a modifier, so it's the suffix (like 'C' in CTRL+C)
-      strncpy(suffix, possibleSuffix, suffixMaxLen - 1);
-      suffix[suffixMaxLen - 1] = '\0';
-      
-      // Now parse only up to the last +
-      int modLen = lastPlus - token;
-      char modPart[32];
-      if (modLen > 0 && modLen < sizeof(modPart)) {
-        strncpy(modPart, token, modLen);
-        modPart[modLen] = '\0';
-        
-        // Parse the modifier part
-        const char* pos = modPart;
-        char part[32];
-        
-        while (*pos) {
-          int partLen = 0;
-          while (*pos && *pos != '+' && partLen < sizeof(part) - 1) {
-            part[partLen++] = *pos;
-            pos++;
-          }
-          part[partLen] = '\0';
-          
-          uint8_t modBit = findModifierBit(part);
-          if (modBit != 0) {
-            *modifierMask |= modBit;
-          }
-          
-          if (*pos == '+') {
-            pos++;
-          }
-        }
-      }
-      
-      return true;
-    }
-  }
-  
-  // No suffix found, parse the whole thing as modifiers
-  const char* pos = token;
-  char part[32];
+static uint8_t parseModifierMask(const char* modifierString) {
+  uint8_t mask = 0;
+  const char* pos = modifierString;
+  char part[16];
   
   while (*pos) {
     int partLen = 0;
+    // Read until + or end
     while (*pos && *pos != '+' && partLen < sizeof(part) - 1) {
       part[partLen++] = *pos;
       pos++;
     }
     part[partLen] = '\0';
     
-    uint8_t modBit = findModifierBit(part);
-    if (modBit != 0) {
-      *modifierMask |= modBit;
-    } else {
-      // Not a modifier - this is suffix content
-      strncpy(suffix, part, suffixMaxLen - 1);
-      suffix[suffixMaxLen - 1] = '\0';
-      
-      // Add any remaining content after +
-      if (*pos == '+') {
-        pos++;
-        int suffixLen = strlen(suffix);
-        if (suffixLen < suffixMaxLen - 1) {
-          suffix[suffixLen++] = '+';
-          strncpy(suffix + suffixLen, pos, suffixMaxLen - suffixLen - 1);
-          suffix[suffixMaxLen - 1] = '\0';
-        }
-      }
-      break;
+    if (partLen == 0) {
+      return 0; // Empty part
     }
+    
+    uint8_t modBit = findModifierBit(part);
+    if (modBit == 0) {
+      return 0; // Unknown modifier
+    }
+    
+    mask |= modBit;
     
     if (*pos == '+') {
       pos++;
     }
   }
   
-  return true;
+  return mask;
+}
+
+static bool isModifierToken(const char* token) {
+  // Check if token contains only valid modifiers separated by +
+  return parseModifierMask(token) != 0;
+}
+
+static bool peekNextToken(const char* pos, char* nextToken, int maxLen) {
+  skipWhitespace(&pos);
+  if (*pos == '\0' || *pos == '"') {
+    return false; // No next token or it's a quoted string
+  }
+  
+  return parseToken(&pos, nextToken, maxLen);
 }
 
 //==============================================================================
@@ -276,7 +242,7 @@ MacroEncodeResult macroEncode(const char* input) {
     if (*pos == '\0') break;
     
     if (*pos == '"') {
-      // Quoted string
+      // Quoted string - process directly
       if (!parseQuotedString(parseBuffer, &bufferPos, &pos)) {
         result.error = ERR_BUFFER_OVERFLOW;
         return result;
@@ -288,175 +254,83 @@ MacroEncodeResult macroEncode(const char* input) {
         break;
       }
       
-      // Check for prefix
-      bool hasPrefix = false;
-      bool isPress = true;
-      const char* tokenContent = token;
-      
+      // Determine token type based on prefix
       if (token[0] == '+') {
-        hasPrefix = true;
-        isPress = true;
-        tokenContent = token + 1;
-      } else if (token[0] == '-') {
-        hasPrefix = true;
-        isPress = false;
-        tokenContent = token + 1;
-      }
-      
-      // Parse modifier chain
-      uint8_t modifierMask;
-      char suffix[32];
-      
-      if (!parseModifierChain(tokenContent, &modifierMask, suffix, sizeof(suffix))) {
-        result.error = ERR_UNKNOWN_TOKEN;
-        return result;
-      }
-      
-      if (hasPrefix) {
-        // Explicit press/release: +CTRL or -CTRL
-        if (isPress) {
-          if (!addModifierPress(parseBuffer, &bufferPos, modifierMask)) {
-            result.error = ERR_BUFFER_OVERFLOW;
-            return result;
-          }
-        } else {
-          if (!addModifierRelease(parseBuffer, &bufferPos, modifierMask)) {
-            result.error = ERR_BUFFER_OVERFLOW;
-            return result;
-          }
-        }
-      } else if (modifierMask != 0) {
-        // Check for old-style atomic syntax like CTRL+C
-        if (suffix[0] != '\0') {
-          // This is an atomic operation like CTRL+C or SHIFT+F1
-          if (!addModifierPress(parseBuffer, &bufferPos, modifierMask)) {
-            result.error = ERR_BUFFER_OVERFLOW;
-            return result;
-          }
-          
-          // Add the key
-          if (strlen(suffix) == 1) {
-            // Single character - add it directly
-            char ch = suffix[0];
-            // Convert to lowercase for consistency
-            if (ch >= 'A' && ch <= 'Z') {
-              ch = ch - 'A' + 'a';
-            }
-            if (!addByte(parseBuffer, &bufferPos, ch)) {
-              result.error = ERR_BUFFER_OVERFLOW;
-              return result;
-            }
-          } else {
-            // Multi-character token - must be a keyword
-            if (!addKeywordToBuffer(parseBuffer, &bufferPos, suffix)) {
-              result.error = ERR_UNKNOWN_TOKEN;
-              return result;
-            }
-          }
-          
-          // Release modifiers for atomic operation
-          if (!addModifierRelease(parseBuffer, &bufferPos, modifierMask)) {
-            result.error = ERR_BUFFER_OVERFLOW;
-            return result;
-          }
-        } else {
-          // Just modifiers with no suffix - check next token for space-separated pattern
-          skipWhitespace(&pos);
-          if (*pos != '\0' && *pos != '"') {
-            // There's a next token - peek at it
-            const char* savedPos = pos;
-            char nextToken[64];
-            if (parseToken(&pos, nextToken, sizeof(nextToken))) {
-              // This is the space-separated pattern like CTRL TAB
-              // Add the key
-              if (strlen(nextToken) == 1) {
-                // Single character
-                char ch = nextToken[0];
-                // Convert to lowercase for consistency
-                if (ch >= 'A' && ch <= 'Z') {
-                  ch = ch - 'A' + 'a';
-                }
-                if (!addByte(parseBuffer, &bufferPos, ch)) {
-                  result.error = ERR_BUFFER_OVERFLOW;
-                  return result;
-                }
-              } else {
-                // Keyword
-                if (!addKeywordToBuffer(parseBuffer, &bufferPos, nextToken)) {
-                  result.error = ERR_UNKNOWN_TOKEN;
-                  return result;
-                }
-              }
-              
-              // Release modifiers for atomic operation
-              if (!addModifierRelease(parseBuffer, &bufferPos, modifierMask)) {
-                result.error = ERR_BUFFER_OVERFLOW;
-                return result;
-              }
-            } else {
-              // No valid next token - just hold the modifiers
-              pos = savedPos;
-            }
-          } else if (*pos == '"') {
-            // Quoted string follows - apply modifiers to first char only
-            const char* stringStart = pos;
-            pos++; // Skip quote
-            if (*pos && *pos != '"') {
-              // Add first character with modifiers
-              char ch = *pos;
-              if (!addByte(parseBuffer, &bufferPos, ch)) {
-                result.error = ERR_BUFFER_OVERFLOW;
-                return result;
-              }
-              pos++;
-              
-              // Release modifiers
-              if (!addModifierRelease(parseBuffer, &bufferPos, modifierMask)) {
-                result.error = ERR_BUFFER_OVERFLOW;
-                return result;
-              }
-              
-              // Add rest of string without modifiers
-              while (*pos && *pos != '"') {
-                if (*pos == '\\') {
-                  if (!processEscapeSequence(parseBuffer, &bufferPos, &pos)) {
-                    result.error = ERR_BUFFER_OVERFLOW;
-                    return result;
-                  }
-                } else {
-                  if (!addByte(parseBuffer, &bufferPos, *pos)) {
-                    result.error = ERR_BUFFER_OVERFLOW;
-                    return result;
-                  }
-                  pos++;
-                }
-              }
-              
-              if (*pos == '"') {
-                pos++; // Skip closing quote
-              }
-              continue;
-            } else {
-              // Empty string - restore position
-              pos = stringStart;
-            }
-          }
-        }
-      } else {
-        // Not a modifier - check for keyword or single char
+        // Press and hold operation: +CTRL or +CTRL+SHIFT
         if (strlen(token) == 1) {
-          // Single character - add it directly
-          char ch = token[0];
-          if (!addByte(parseBuffer, &bufferPos, ch)) {
-            result.error = ERR_BUFFER_OVERFLOW;
-            return result;
-          }
-        } else {
-          // Multi-character token - check if it's a keyword
-          if (!addKeywordToBuffer(parseBuffer, &bufferPos, token)) {
-            result.error = ERR_UNKNOWN_TOKEN;
-            return result;
-          }
+          result.error = ERR_EMPTY_MODIFIER;
+          return result;
+        }
+        
+        const char* modifierPart = token + 1; // Skip the +
+        uint8_t modifierMask = parseModifierMask(modifierPart);
+        
+        if (modifierMask == 0) {
+          result.error = ERR_UNKNOWN_MODIFIER;
+          return result;
+        }
+        
+        if (!addModifierPress(parseBuffer, &bufferPos, modifierMask)) {
+          result.error = ERR_BUFFER_OVERFLOW;
+          return result;
+        }
+        
+      } else if (token[0] == '-') {
+        // Release operation: -CTRL or -CTRL+SHIFT
+        if (strlen(token) == 1) {
+          result.error = ERR_EMPTY_MODIFIER;
+          return result;
+        }
+        
+        const char* modifierPart = token + 1; // Skip the -
+        uint8_t modifierMask = parseModifierMask(modifierPart);
+        
+        if (modifierMask == 0) {
+          result.error = ERR_UNKNOWN_MODIFIER;
+          return result;
+        }
+        
+        if (!addModifierRelease(parseBuffer, &bufferPos, modifierMask)) {
+          result.error = ERR_BUFFER_OVERFLOW;
+          return result;
+        }
+        
+      } else if (isModifierToken(token)) {
+        // Atomic operation: CTRL C or CTRL+SHIFT T
+        uint8_t modifierMask = parseModifierMask(token);
+        
+        // Must have a following key token
+        char nextToken[64];
+        if (!peekNextToken(pos, nextToken, sizeof(nextToken))) {
+          result.error = ERR_MISSING_KEY;
+          return result;
+        }
+        
+        // Consume the next token
+        skipWhitespace(&pos);
+        parseToken(&pos, nextToken, sizeof(nextToken));
+        
+        // Generate atomic sequence: press modifiers, key, release modifiers
+        if (!addModifierPress(parseBuffer, &bufferPos, modifierMask)) {
+          result.error = ERR_BUFFER_OVERFLOW;
+          return result;
+        }
+        
+        if (!addKeyToBuffer(parseBuffer, &bufferPos, nextToken)) {
+          result.error = ERR_UNKNOWN_TOKEN;
+          return result;
+        }
+        
+        if (!addModifierRelease(parseBuffer, &bufferPos, modifierMask)) {
+          result.error = ERR_BUFFER_OVERFLOW;
+          return result;
+        }
+        
+      } else {
+        // Regular key or keyword
+        if (!addKeyToBuffer(parseBuffer, &bufferPos, token)) {
+          result.error = ERR_UNKNOWN_TOKEN;
+          return result;
         }
       }
     }
