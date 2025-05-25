@@ -6,6 +6,37 @@
 
 #include "map-parser-tables.h"
 
+// Helper function to determine if a HID code should remain as keyword
+// Returns true for function keys and navigation keys only
+bool shouldRemainAsKeyword(uint8_t hidCode) {
+  // Function keys: 0x3A-0x45 (F1-F12)
+  if (hidCode >= 0x3A && hidCode <= 0x45) {
+    return true;
+  }
+  
+  // Navigation keys - only these specific ones
+  switch (hidCode) {
+    case 0x52: // UP_ARROW
+    case 0x51: // DOWN_ARROW  
+    case 0x50: // LEFT_ARROW
+    case 0x4F: // RIGHT_ARROW
+    case 0x4A: // HOME
+    case 0x4D: // END
+    case 0x4B: // PAGE_UP
+    case 0x4E: // PAGE_DOWN
+    case 0x4C: // DELETE
+      return true;
+    default:
+      return false;
+  }
+}
+
+// Helper function to check if a byte is a UTF8+ control code
+bool isControlCode(uint8_t b) {
+  return (b >= UTF8_PRESS_CTRL && b <= UTF8_RELEASE_CMD) ||
+         b == UTF8_PRESS_MULTI || b == UTF8_RELEASE_MULTI;
+}
+
 String macroDecode(const uint8_t* bytes, uint16_t length) {
   if (!bytes || length == 0) return F("\"\"");
   
@@ -63,32 +94,37 @@ String macroDecode(const uint8_t* bytes, uint16_t length) {
         continue;
     }
     
-    // Check if it's a function key or special key BEFORE checking for regular characters
+    // Check if it's a function key or navigation key that should remain as keyword
     const char* keyword = findKeywordForHID(b);
-    if (keyword) {
-      // Use keyword form for function keys and special keys
+    if (keyword && shouldRemainAsKeyword(b)) {
+      // Function keys and navigation keys remain as keywords
       result += keyword;
       i++;
       continue;
     }
     
-    // Handle printable characters and control characters as quoted strings
-    if (isRegularCharacter(b) || b == ' ' || b == '\n' || b == '\r' || b == '\t' || b == '\a') {
-      uint16_t stringStart = i;
-      while (i < length && (isRegularCharacter(bytes[i]) || bytes[i] == ' ' || 
-                           bytes[i] == '\n' || bytes[i] == '\r' || bytes[i] == '\t' || bytes[i] == '\a')) {
-        // Stop if we hit a control code
-        if (bytes[i] >= UTF8_PRESS_CTRL && bytes[i] <= UTF8_RELEASE_CMD) break;
-        if (bytes[i] == UTF8_PRESS_MULTI || bytes[i] == UTF8_RELEASE_MULTI) break;
-        if (bytes[i] == UTF8_ESCAPE || bytes[i] == UTF8_BACKSPACE) break;
-        
-        // Stop if we hit a function key or special key
-        if (findKeywordForHID(bytes[i]) != nullptr) break;
-        
-        i++;
+    // Handle regular characters - group consecutive non-control characters
+    uint16_t stringStart = i;
+    while (i < length) {
+      uint8_t currentByte = bytes[i];
+      
+      // Stop if we hit a control code
+      if (isControlCode(currentByte)) {
+        break;
       }
       
-      // Always quote strings
+      // Stop if we hit a function key or navigation key that should remain as keyword
+      const char* currentKeyword = findKeywordForHID(currentByte);
+      if (currentKeyword && shouldRemainAsKeyword(currentByte)) {
+        break;
+      }
+      
+      // Include this byte in the string
+      i++;
+    }
+    
+    // If we have characters to output, quote them
+    if (i > stringStart) {
       result += "\"";
       for (uint16_t j = stringStart; j < i; j++) {
         char c = (char)bytes[j];
@@ -99,18 +135,25 @@ String macroDecode(const uint8_t* bytes, uint16_t length) {
           case '\r': result += "\\r"; break;
           case '\t': result += "\\t"; break;
           case '\a': result += "\\a"; break;
-          default:   result += c; break;
+          case 0x1B: result += "\\e"; break;  // Escape character
+          case 0x08: result += "\\b"; break;  // Backspace character
+          default:   
+            // Handle other control characters as hex escapes if needed
+            if ((uint8_t)c < 0x20 && c != '\n' && c != '\r' && c != '\t' && c != '\a' && c != 0x1B && c != 0x08) {
+              result += "\\x";
+              if ((uint8_t)c < 0x10) result += "0";
+              result += String((uint8_t)c, HEX);
+            } else {
+              result += c;
+            }
+            break;
         }
       }
       result += "\"";
-      continue;
+    } else {
+      // No characters consumed - this shouldn't happen but handle gracefully
+      i++;
     }
-    
-    // Unknown byte - add as hex escape
-    result += "\\x";
-    if (b < 0x10) result += "0";
-    result += String(b, HEX);
-    i++;
   }
   
   // Special case: if result is empty, return empty quotes

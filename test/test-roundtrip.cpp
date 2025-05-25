@@ -50,20 +50,32 @@ void performEncodeDecodeTest(const TestCase& test) {
 
 std::vector<TestCase> createBasicTests() {
     return {
-        // Simple atomic operations - these should convert to explicit press/release
-        TestCase("Simple CTRL+C", "CTRL+C", "+CTRL \"c\" -CTRL"),
-        TestCase("SHIFT+F1", "SHIFT+F1", "+SHIFT F1 -SHIFT"),
-        TestCase("ALT+TAB", "ALT+TAB", "+ALT \"\\t\" -ALT"),
-        TestCase("Multi-modifier", "CTRL+SHIFT+T", "+CTRL+SHIFT \"t\" -CTRL+SHIFT"),
+        // Simple atomic operations - these expand to explicit press/release
+        TestCase("Simple CTRL C", "CTRL C", "+CTRL \"c\" -CTRL"),
+        TestCase("SHIFT F1", "SHIFT F1", "+SHIFT F1 -SHIFT"),
+        TestCase("ALT TAB", "ALT TAB", "+ALT \"\\t\" -ALT"),
+        TestCase("Multi-modifier", "CTRL+SHIFT T", "+CTRL+SHIFT \"t\" -CTRL+SHIFT"),
         
-        // Escape sequences remain as escapes in quoted strings
-        TestCase("Newline escape", "\"line1\\nline2\"", "\"line1\\nline2\""),
-        TestCase("Tab escape", "\"text\\ttabbed\"", "\"text\\ttabbed\""),
+        // Keywords that become characters in quoted strings
+        TestCase("ENTER keyword", "ENTER", "\"\\n\""),
+        TestCase("TAB keyword", "TAB", "\"\\t\""),
+        TestCase("SPACE keyword", "SPACE", "\" \""),
+        TestCase("ESC keyword", "ESC", "\"\\e\""),
+        TestCase("BACKSPACE keyword", "BACKSPACE", "\"\\b\""),
         
-        // Simple text and keys should pass through
-        TestCase("Simple text", "\"hello\"", "\"hello\""),
+        // Function keys remain as keywords
         TestCase("Function key", "F1", "F1"),
-        TestCase("Single character", "a", "\"a\""),
+        TestCase("Function key F12", "F12", "F12"),
+        
+        // Navigation keys remain as keywords
+        TestCase("Arrow key", "UP", "UP"),
+        TestCase("Navigation key", "HOME", "HOME"),
+        TestCase("Delete key", "DELETE", "DELETE"),
+        
+        // Simple text - always quoted even for single characters
+        TestCase("Simple text", "\"hello\"", "\"hello\""),
+        TestCase("Single character", "\"a\"", "\"a\""),
+        TestCase("Single space", "\" \"", "\" \""),
         
         // Explicit press/release should pass through
         TestCase("Press CTRL", "+CTRL", "+CTRL"),
@@ -75,28 +87,31 @@ std::vector<TestCase> createBasicTests() {
 
 std::vector<TestCase> createAdvancedTests() {
     return {
-        // Complex sequences
+        // Complex sequences with mixed content
         TestCase("Hold and type", "+SHIFT \"HELLO\" -SHIFT \" world\"", "+SHIFT \"HELLO\" -SHIFT \" world\""),
-        TestCase("Empty modifier combo", "CTRL+SHIFT+ALT", "+CTRL+SHIFT+ALT"),
-        TestCase("Copy and paste", "CTRL+C \"copied\" CTRL+V", "+CTRL \"c\" -CTRL \"copied\" +CTRL \"v\" -CTRL"),
-        TestCase("Space-separated modifiers", "CTRL TAB", "+CTRL \"\\t\" -CTRL"),
-        TestCase("Space-separated shift", "SHIFT F1", "+SHIFT F1 -SHIFT"),
-        TestCase("Modifier with text", "CTRL \"abc\"", "+CTRL \"abc\" -CTRL"),
-        TestCase("Shift with text", "SHIFT \"hello\"", "+SHIFT \"hello\" -SHIFT"),
-        TestCase("Just modifiers", "CTRL+SHIFT", "+CTRL+SHIFT"),
+        TestCase("Copy and paste", "CTRL C \"copied\" CTRL V", "+CTRL \"c\" -CTRL \"copied\" +CTRL \"v\" -CTRL"),
         
-        // Escape sequences - all remain as escapes
-        TestCase("All escapes", "\"\\n\\r\\t\\\"\\\\\"", "\"\\n\\r\\t\\\"\\\\\""),
-        TestCase("Complex sequence", "CTRL+A \"select\\nall\" ENTER", "+CTRL \"a\" -CTRL \"select\\nall\" \"\\n\""),
+        // Escape sequences remain as escapes in quoted strings
+        TestCase("Newline escape", "\"line1\\nline2\"", "\"line1\\nline2\""),
+        TestCase("Tab escape", "\"text\\ttabbed\"", "\"text\\ttabbed\""),
+        TestCase("All escapes", "\"\\n\\r\\t\\a\\e\\\"\\\\\"", "\"\\n\\r\\t\\a\\e\\\"\\\\\""),
         
-        // Keywords become their character equivalents
-        TestCase("ENTER keyword", "ENTER", "\"\\n\""),
-        TestCase("TAB keyword", "TAB", "\"\\t\""),
-        TestCase("SPACE keyword", "SPACE", "\" \""),
+        // Mixed keywords and text
+        TestCase("Keyword with text", "CTRL \"abc\"", "+CTRL \"abc\" -CTRL"),
+        TestCase("Text with navigation", "\"text\" UP \"more\"", "\"text\" UP \"more\""),
+        TestCase("Complex sequence", "CTRL A \"select\\nall\" ENTER", "+CTRL \"a\" -CTRL \"select\\nall\" \"\\n\""),
         
-        // Whitespace normalization
-        TestCase("Extra spaces", " CTRL+C ", "+CTRL \"c\" -CTRL"), 
-        TestCase("Multiple spaces", "F1   \"help\"", "F1 \"help\""),
+        // Multiple spaces and formatting
+        TestCase("Multiple spaces", "\"hello   world\"", "\"hello   world\""),
+        TestCase("Mixed whitespace", "\"tab\\there\\nnewline\"", "\"tab\\there\\nnewline\""),
+        
+        // Modifier combinations
+        TestCase("Triple modifier", "CTRL+ALT+SHIFT DELETE", "+CTRL+ALT+SHIFT DELETE -CTRL+ALT+SHIFT"),
+        TestCase("Modifier with function key", "CTRL F1", "+CTRL F1 -CTRL"),
+        
+        // Edge cases
+        TestCase("Just quotes", "\"\"", "\"\""),
+        TestCase("Special chars", "\"!@#$%^&*()\"", "\"!@#$%^&*()\""),
     };
 }
 
@@ -105,6 +120,8 @@ std::vector<TestCase> createErrorTests() {
         // These should fail during encoding
         TestCase("Unknown keyword", "UNKNOWN_KEY", EXPECT_FAIL),
         TestCase("Empty input", "", EXPECT_FAIL),
+        TestCase("Modifier without key", "CTRL+SHIFT", EXPECT_FAIL),
+        TestCase("Empty modifier", "+", EXPECT_FAIL),
     };
 }
 
