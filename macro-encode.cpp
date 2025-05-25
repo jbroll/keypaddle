@@ -151,17 +151,25 @@ static bool parseToken(const char** input, char* token, int maxLen) {
 
 static bool addKeyToBuffer(uint8_t* buffer, int* pos, const char* keyToken) {
   if (strlen(keyToken) == 1) {
-    // Single character - convert to lowercase for consistency
+    // Single character - store as literal ASCII (no conversion needed)
     char ch = keyToken[0];
     if (ch >= 'A' && ch <= 'Z') {
-      ch = ch - 'A' + 'a';
+      ch = ch - 'A' + 'a';  // Convert to lowercase for consistency
     }
     return addByte(buffer, pos, ch);
   } else {
-    // Multi-character - must be keyword
-    uint8_t hidCode = findHIDCodeForKeyword(keyToken);
-    if (hidCode != 0) {
-      return addByte(buffer, pos, hidCode);
+    // Multi-character - check if it's a function key first
+    if (isFunctionKey(keyToken)) {
+      // Function key - use 2-byte encoding
+      if (!addByte(buffer, pos, UTF8_FUNCTION_KEY)) return false;
+      uint8_t keyNum = getFunctionKeyNumber(keyToken);
+      return addByte(buffer, pos, keyNum);
+    } else {
+      // Other keyword - look up UTF-8+ code
+      uint8_t utf8Code = findUTF8CodeForKeyword(keyToken);
+      if (utf8Code != 0) {
+        return addByte(buffer, pos, utf8Code);
+      }
     }
   }
   return false;

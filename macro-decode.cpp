@@ -6,35 +6,45 @@
 
 #include "map-parser-tables.h"
 
-// Helper function to determine if a HID code should remain as keyword
-// Returns true for function keys and navigation keys only
-bool shouldRemainAsKeyword(uint8_t hidCode) {
-  // Function keys: 0x3A-0x45 (F1-F12)
-  if (hidCode >= 0x3A && hidCode <= 0x45) {
-    return true;
+// Helper function to get function key name from number
+const char* getFunctionKeyName(uint8_t keyNum) {
+  switch (keyNum) {
+    case 1: return "F1";
+    case 2: return "F2";
+    case 3: return "F3";
+    case 4: return "F4";
+    case 5: return "F5";
+    case 6: return "F6";
+    case 7: return "F7";
+    case 8: return "F8";
+    case 9: return "F9";
+    case 10: return "F10";
+    case 11: return "F11";
+    case 12: return "F12";
+    default: return nullptr;
   }
+}
+
+// Helper function to determine if a UTF-8+ code should remain as keyword
+// Returns true for function keys and navigation keys only
+bool shouldRemainAsKeyword(uint8_t utf8Code) {
+  // Function keys are handled separately (2-byte encoding)
   
-  // Navigation keys - only these specific ones
-  switch (hidCode) {
-    case 0x52: // UP_ARROW
-    case 0x51: // DOWN_ARROW  
-    case 0x50: // LEFT_ARROW
-    case 0x4F: // RIGHT_ARROW
-    case 0x4A: // HOME
-    case 0x4D: // END
-    case 0x4B: // PAGE_UP
-    case 0x4E: // PAGE_DOWN
-    case 0x4C: // DELETE
+  // Navigation keys that should remain as keywords
+  switch (utf8Code) {
+    case UTF8_KEY_UP:
+    case UTF8_KEY_DOWN:
+    case UTF8_KEY_LEFT:
+    case UTF8_KEY_RIGHT:
+    case UTF8_KEY_HOME:
+    case UTF8_KEY_END:
+    case UTF8_KEY_PAGEUP:
+    case UTF8_KEY_PAGEDOWN:
+    case UTF8_KEY_DELETE:
       return true;
     default:
       return false;
   }
-}
-
-// Helper function to check if a byte is a UTF8+ control code
-bool isControlCode(uint8_t b) {
-  return (b >= UTF8_PRESS_CTRL && b <= UTF8_RELEASE_CMD) ||
-         b == UTF8_PRESS_MULTI || b == UTF8_RELEASE_MULTI;
 }
 
 String macroDecode(const uint8_t* bytes, uint16_t length) {
@@ -92,15 +102,34 @@ String macroDecode(const uint8_t* bytes, uint16_t length) {
           i++;
         }
         continue;
+        
+      case UTF8_FUNCTION_KEY:
+        // Handle 2-byte function key encoding
+        if (i + 1 < length) {
+          uint8_t keyNum = bytes[i + 1];
+          const char* keyName = getFunctionKeyName(keyNum);
+          if (keyName) {
+            result += keyName;
+          } else {
+            // Invalid function key number - treat as unknown
+            result += "F?";
+          }
+          i += 2;
+        } else {
+          // Incomplete sequence - skip
+          i++;
+        }
+        continue;
     }
     
-    // Check if it's a function key or navigation key that should remain as keyword
-    const char* keyword = findKeywordForHID(b);
-    if (keyword && shouldRemainAsKeyword(b)) {
-      // Function keys and navigation keys remain as keywords
-      result += keyword;
-      i++;
-      continue;
+    // Check if it's a navigation key that should remain as keyword
+    if (shouldRemainAsKeyword(b)) {
+      const char* keyword = findKeywordForUTF8Code(b);
+      if (keyword) {
+        result += keyword;
+        i++;
+        continue;
+      }
     }
     
     // Handle regular characters - group consecutive non-control characters
@@ -108,14 +137,13 @@ String macroDecode(const uint8_t* bytes, uint16_t length) {
     while (i < length) {
       uint8_t currentByte = bytes[i];
       
-      // Stop if we hit a control code
-      if (isControlCode(currentByte)) {
+      // Stop if we hit any UTF-8+ control code
+      if (isUTF8ControlCode(currentByte)) {
         break;
       }
       
-      // Stop if we hit a function key or navigation key that should remain as keyword
-      const char* currentKeyword = findKeywordForHID(currentByte);
-      if (currentKeyword && shouldRemainAsKeyword(currentByte)) {
+      // Stop if we hit a navigation key that should remain as keyword
+      if (shouldRemainAsKeyword(currentByte)) {
         break;
       }
       

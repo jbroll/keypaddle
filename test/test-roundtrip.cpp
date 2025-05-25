@@ -99,14 +99,14 @@ std::vector<TestCase> createAdvancedTests() {
         // Mixed keywords and text
         TestCase("Keyword with text", "CTRL \"abc\"", "+CTRL \"abc\" -CTRL"),
         TestCase("Text with navigation", "\"text\" UP \"more\"", "\"text\" UP \"more\""),
-        TestCase("Complex sequence", "CTRL A \"select\\nall\" ENTER", "+CTRL \"a\" -CTRL \"select\\nall\" \"\\n\""),
+        TestCase("Complex sequence", "CTRL A \"select\\nall\" ENTER", "+CTRL \"a\" -CTRL \"select\\nall\\n\""),
         
         // Multiple spaces and formatting
         TestCase("Multiple spaces", "\"hello   world\"", "\"hello   world\""),
         TestCase("Mixed whitespace", "\"tab\\there\\nnewline\"", "\"tab\\there\\nnewline\""),
         
         // Modifier combinations
-        TestCase("Triple modifier", "CTRL+ALT+SHIFT DELETE", "+CTRL+ALT+SHIFT DELETE -CTRL+ALT+SHIFT"),
+        TestCase("Triple modifier", "CTRL+ALT+SHIFT DELETE", "+CTRL+SHIFT+ALT DELETE -CTRL+SHIFT+ALT"),
         TestCase("Modifier with function key", "CTRL F1", "+CTRL F1 -CTRL"),
         
         // Edge cases

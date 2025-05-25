@@ -8,44 +8,45 @@
 #include <Keyboard.h>
 
 //==============================================================================
-// KEYWORD TO HID CODE MAPPING TABLE
+// KEYWORD TO UTF-8+ CODE MAPPING TABLE
 //==============================================================================
 
-// Table-driven keyword to HID code mapping
-// First entry for each HID code is the preferred display name
+// Table-driven keyword to UTF-8+ code mapping
+// Function keys use special 2-byte encoding, other keys use direct codes
 const KeywordMapping KEYWORD_TABLE[] PROGMEM = {
-  // Function keys
-  {"F1",        KEY_F1},
-  {"F2",        KEY_F2},
-  {"F3",        KEY_F3},
-  {"F4",        KEY_F4},
-  {"F5",        KEY_F5},
-  {"F6",        KEY_F6},
-  {"F7",        KEY_F7},
-  {"F8",        KEY_F8},
-  {"F9",        KEY_F9},
-  {"F10",       KEY_F10},
-  {"F11",       KEY_F11},
-  {"F12",       KEY_F12},
+  // Function keys - these will be handled specially in encoder/decoder
+  // Listed here for completeness but use 2-byte [0x05, n] encoding
+  {"F1",        0x01},   // Function key number (used with UTF8_FUNCTION_KEY prefix)
+  {"F2",        0x02},
+  {"F3",        0x03},
+  {"F4",        0x04},
+  {"F5",        0x05},
+  {"F6",        0x06},
+  {"F7",        0x07},
+  {"F8",        0x08},
+  {"F9",        0x09},
+  {"F10",       0x0A},
+  {"F11",       0x0B},
+  {"F12",       0x0C},
   
-  // Arrow keys
-  {"UP",        KEY_UP_ARROW},
-  {"DOWN",      KEY_DOWN_ARROW},
-  {"LEFT",      KEY_LEFT_ARROW},
-  {"RIGHT",     KEY_RIGHT_ARROW},
+  // Arrow keys - mapped to UTF-8+ safe space (single byte)
+  {"UP",        UTF8_KEY_UP},
+  {"DOWN",      UTF8_KEY_DOWN},
+  {"LEFT",      UTF8_KEY_LEFT},
+  {"RIGHT",     UTF8_KEY_RIGHT},
   
-  // Navigation
-  {"HOME",      KEY_HOME},
-  {"END",       KEY_END},
-  {"PAGEUP",    KEY_PAGE_UP},
-  {"PAGEDOWN",  KEY_PAGE_DOWN},
-  {"DELETE",    KEY_DELETE},
-  {"DEL",       KEY_DELETE},      // Alias - will display as DELETE (first entry)
+  // Navigation - mapped to UTF-8+ safe space (single byte)
+  {"HOME",      UTF8_KEY_HOME},
+  {"END",       UTF8_KEY_END},
+  {"PAGEUP",    UTF8_KEY_PAGEUP},
+  {"PAGEDOWN",  UTF8_KEY_PAGEDOWN},
+  {"DELETE",    UTF8_KEY_DELETE},
+  {"DEL",       UTF8_KEY_DELETE},      // Alias - will display as DELETE (first entry)
   
-  // Common control keys - these map to printable characters
-  {"ENTER",     '\n'},            // Newline character
-  {"TAB",       '\t'},            // Tab character  
-  {"SPACE",     ' '},             // Space character
+  // Common control keys - these map to printable characters (literal ASCII)
+  {"ENTER",     '\n'},            // Newline character (0x0A)
+  {"TAB",       '\t'},            // Tab character (0x09)
+  {"SPACE",     ' '},             // Space character (0x20)
   {"ESC",       0x1B},            // Escape character
   {"BACKSPACE", 0x08},            // Backspace character
 };
@@ -71,12 +72,18 @@ const int NUM_MODIFIERS = 6;
 // SHARED LOOKUP FUNCTIONS
 //==============================================================================
 
-uint8_t findHIDCodeForKeyword(const char* keyword) {
-  for (int i = 0; i < KEYWORD_TABLE_SIZE; i++) {
+uint8_t findUTF8CodeForKeyword(const char* keyword) {
+  // Handle function keys specially (they use 2-byte encoding)
+  if (isFunctionKey(keyword)) {
+    return UTF8_FUNCTION_KEY;  // Caller must handle 2-byte encoding
+  }
+  
+  // Handle other keywords normally
+  for (int i = 12; i < KEYWORD_TABLE_SIZE; i++) {  // Skip F1-F12 entries
     KeywordMapping entry;
     memcpy_P(&entry, &KEYWORD_TABLE[i], sizeof(KeywordMapping));
-    if (strcasecmp(keyword, entry.keyword) == 0) {  // Pure C comparison
-      return entry.hidCode;
+    if (strcasecmp(keyword, entry.keyword) == 0) {
+      return entry.utf8Code;
     }
   }
   return 0;
@@ -90,103 +97,48 @@ uint8_t findModifierBit(const char* name) {
   return 0;
 }
 
-const char* findKeywordForHID(uint8_t hidCode) {
-  for (int i = 0; i < KEYWORD_TABLE_SIZE; i++) {
+const char* findKeywordForUTF8Code(uint8_t utf8Code) {
+  // Handle function key lookup (2-byte encoding not supported here)
+  // This function is used by decoder which handles 2-byte sequences separately
+  
+  for (int i = 12; i < KEYWORD_TABLE_SIZE; i++) {  // Skip F1-F12 entries
     KeywordMapping entry;
     memcpy_P(&entry, &KEYWORD_TABLE[i], sizeof(KeywordMapping));
-    if (entry.hidCode == hidCode) {
+    if (entry.utf8Code == utf8Code) {
       return entry.keyword;  // First match is preferred display name
     }
   }
   return nullptr; // Not found
 }
 
-//==============================================================================
-// CHARACTER TO HID CODE MAPPING  
-//==============================================================================
-
-uint8_t charToHID(char c) {
-  // Convert printable ASCII characters to HID codes
-  if (c >= 'a' && c <= 'z') {
-    return 0x04 + (c - 'a');  // HID codes 0x04-0x1D for a-z
-  }
-  if (c >= 'A' && c <= 'Z') {
-    return 0x04 + (c - 'A');  // HID codes 0x04-0x1D for A-Z  
-  }
-  if (c >= '1' && c <= '9') {
-    return 0x1E + (c - '1');  // HID codes 0x1E-0x26 for 1-9
-  }
-  if (c == '0') {
-    return 0x27;              // HID code for 0
-  }
+// Function key specific helpers
+bool isFunctionKey(const char* keyword) {
+  if (strlen(keyword) < 2 || keyword[0] != 'F') return false;
   
-  // Special characters
-  switch (c) {
-    case ' ':  return 0x2C;   // Space
-    case '!':  return 0x1E;   // 1 with shift
-    case '@':  return 0x1F;   // 2 with shift  
-    case '#':  return 0x20;   // 3 with shift
-    case '$':  return 0x21;   // 4 with shift
-    case '%':  return 0x22;   // 5 with shift
-    case '^':  return 0x23;   // 6 with shift
-    case '&':  return 0x24;   // 7 with shift
-    case '*':  return 0x25;   // 8 with shift
-    case '(':  return 0x26;   // 9 with shift
-    case ')':  return 0x27;   // 0 with shift
-    case '-':  return 0x2D;   // Minus
-    case '_':  return 0x2D;   // Minus with shift
-    case '=':  return 0x2E;   // Equals
-    case '+':  return 0x2E;   // Equals with shift
-    case '[':  return 0x2F;   // Left bracket
-    case '{':  return 0x2F;   // Left bracket with shift
-    case ']':  return 0x30;   // Right bracket
-    case '}':  return 0x30;   // Right bracket with shift
-    case '\\': return 0x31;   // Backslash
-    case '|':  return 0x31;   // Backslash with shift
-    case ';':  return 0x33;   // Semicolon
-    case ':':  return 0x33;   // Semicolon with shift
-    case '\'': return 0x34;   // Quote
-    case '"':  return 0x34;   // Quote with shift
-    case '`':  return 0x35;   // Backtick
-    case '~':  return 0x35;   // Backtick with shift
-    case ',':  return 0x36;   // Comma
-    case '<':  return 0x36;   // Comma with shift
-    case '.':  return 0x37;   // Period
-    case '>':  return 0x37;   // Period with shift
-    case '/':  return 0x38;   // Slash
-    case '?':  return 0x38;   // Slash with shift
-    default:   return c;      // Pass through other characters
+  // Check F1-F12
+  if (strcmp(keyword, "F1") == 0 || strcmp(keyword, "F2") == 0 || strcmp(keyword, "F3") == 0 ||
+      strcmp(keyword, "F4") == 0 || strcmp(keyword, "F5") == 0 || strcmp(keyword, "F6") == 0 ||
+      strcmp(keyword, "F7") == 0 || strcmp(keyword, "F8") == 0 || strcmp(keyword, "F9") == 0 ||
+      strcmp(keyword, "F10") == 0 || strcmp(keyword, "F11") == 0 || strcmp(keyword, "F12") == 0) {
+    return true;
   }
+  return false;
 }
 
-char hidToChar(uint8_t hidCode) {
-  // Convert HID codes back to characters
-  if (hidCode >= 0x04 && hidCode <= 0x1D) {
-    return 'a' + (hidCode - 0x04);  // a-z
-  }
-  if (hidCode >= 0x1E && hidCode <= 0x26) {
-    return '1' + (hidCode - 0x1E);  // 1-9
-  }
-  if (hidCode == 0x27) {
-    return '0';
-  }
-  
-  // Special characters - return base character without shift
-  switch (hidCode) {
-    case 0x2C: return ' ';    // Space
-    case 0x2D: return '-';    // Minus
-    case 0x2E: return '=';    // Equals
-    case 0x2F: return '[';    // Left bracket
-    case 0x30: return ']';    // Right bracket
-    case 0x31: return '\\';   // Backslash
-    case 0x33: return ';';    // Semicolon
-    case 0x34: return '\'';   // Quote
-    case 0x35: return '`';    // Backtick
-    case 0x36: return ',';    // Comma
-    case 0x37: return '.';    // Period
-    case 0x38: return '/';    // Slash
-    default:   return hidCode; // Pass through
-  }
+uint8_t getFunctionKeyNumber(const char* keyword) {
+  if (strcmp(keyword, "F1") == 0) return 1;
+  if (strcmp(keyword, "F2") == 0) return 2;
+  if (strcmp(keyword, "F3") == 0) return 3;
+  if (strcmp(keyword, "F4") == 0) return 4;
+  if (strcmp(keyword, "F5") == 0) return 5;
+  if (strcmp(keyword, "F6") == 0) return 6;
+  if (strcmp(keyword, "F7") == 0) return 7;
+  if (strcmp(keyword, "F8") == 0) return 8;
+  if (strcmp(keyword, "F9") == 0) return 9;
+  if (strcmp(keyword, "F10") == 0) return 10;
+  if (strcmp(keyword, "F11") == 0) return 11;
+  if (strcmp(keyword, "F12") == 0) return 12;
+  return 0; // Not a function key
 }
 
 //==============================================================================
@@ -194,12 +146,32 @@ char hidToChar(uint8_t hidCode) {
 //==============================================================================
 
 bool isRegularCharacter(uint8_t b) {
-  // Regular printable characters and UTF-8 extended characters
-  return (b >= 0x20 && b <= 0x7E) || (b > 0x7E);
+  // Regular printable ASCII characters, control characters that are literal,
+  // and UTF-8 extended characters
+  // Exclude our UTF-8+ control codes and special key codes
+  
+  return !isUTF8ControlCode(b);
 }
 
 bool needsQuoting(uint8_t b) {
   // Characters that should be quoted even if single
   return (b == ' ' || b == '\t' || b == '\n' || b == '\r' || 
           b == '"' || b == '\\' || b < 0x20);
+}
+
+bool isUTF8ControlCode(uint8_t b) {
+  // Check for all UTF-8+ control and special key codes
+  //
+  if (b == 0x1B) return false;  // ESCAPE
+  
+  // Modifier control codes
+  if (b >= UTF8_PRESS_CTRL && b <= UTF8_PRESS_CMD) return true;  // 0x01-0x04
+  if (b == UTF8_FUNCTION_KEY) return true;  // 0x05 (function key prefix)
+  if (b == UTF8_RELEASE_CTRL) return true;  // 0x06
+  if (b == UTF8_KEY_UP) return true;  // 0x07
+  if (b == UTF8_PRESS_MULTI || b == UTF8_RELEASE_MULTI) return true;  // 0x0E-0x0F
+  if (b >= UTF8_RELEASE_ALT && b <= UTF8_RELEASE_CMD) return true;  // 0x10-0x12
+  if (b >= UTF8_KEY_DOWN && b <= UTF8_KEY_DELETE) return true;  // 0x13-0x1A
+  
+  return false;
 }
