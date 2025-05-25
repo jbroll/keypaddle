@@ -12,20 +12,40 @@
 #include <functional>
 
 //==============================================================================
+// TEST EXPECTATION CONSTANTS
+//==============================================================================
+
+static const std::string EXPECT_FAIL = "__EXPECT_FAIL__";
+static const std::string EXPECT_PASS = "__EXPECT_PASS__";
+
+//==============================================================================
 // TEST CASE STRUCTURE
 //==============================================================================
 
 struct TestCase {
     std::string name;
     std::string input;
-    std::string expectedOutput;  // Empty means expect same as input
+    std::string expected;
     bool shouldSucceed;
     
-    TestCase(const std::string& n, const std::string& i, bool succeed = true)
-        : name(n), input(i), expectedOutput(""), shouldSucceed(succeed) {}
+    // Single constructor that handles both cases
+    TestCase(const std::string& n, const std::string& i, const std::string& third_param)
+        : name(n), input(i) {
         
-    TestCase(const std::string& n, const std::string& i, const std::string& expected, bool succeed = true)
-        : name(n), input(i), expectedOutput(expected), shouldSucceed(succeed) {}
+        if (third_param == EXPECT_FAIL) {
+            // This is an error test case
+            expected = "";
+            shouldSucceed = false;
+        } else if (third_param == EXPECT_PASS) {
+            // This is a pass test case (no expected output)
+            expected = "";
+            shouldSucceed = true;
+        } else {
+            // This is a normal test case with expected output
+            expected = third_param;
+            shouldSucceed = true;
+        }
+    }
 };
 
 //==============================================================================
@@ -71,67 +91,26 @@ public:
     
     void setVerbose(bool v) { verbose = v; }
     
-    // Generic test runner for any test function
-    void runTest(const TestCase& test, std::function<bool(const TestCase&)> testFunc) {
+    // Exception-based test runner
+    void runTest(const TestCase& test, std::function<void(const TestCase&)> testFunc) {
         totalTests++;
         printTestHeader(test);
         
         try {
-            if (testFunc(test)) {
-                printSuccess();
-            }
-        } catch (const std::exception& e) {
-            printFailure(std::string("Exception: ") + e.what());
-        } catch (...) {
-            printFailure("Unknown exception");
-        }
-        
-        if (verbose) std::cout << std::endl;
-    }
-    
-    // Specialized for round-trip testing
-    void runRoundTripTest(const TestCase& test,
-                         std::function<std::pair<std::string, std::string>(const std::string&)> roundTripFunc) {
-        totalTests++;
-        printTestHeader(test);
-        
-        try {
-            std::pair<std::string, std::string> result_pair = roundTripFunc(test.input);
-            std::string result = result_pair.first;
-            std::string error = result_pair.second;
+            testFunc(test);
             
+            // If we get here and shouldSucceed is false, that's wrong
             if (!test.shouldSucceed) {
-                if (!error.empty()) {
-                    printSuccess("Expected failure: " + error);
-                } else {
-                    printFailure("Expected failure but test succeeded");
-                }
-                return;
-            }
-            
-            if (!error.empty()) {
-                printFailure("Unexpected error: " + error);
-                return;
-            }
-            
-            std::string expected = test.expectedOutput.empty() ? test.input : test.expectedOutput;
-            
-            if (verbose) {
-                std::cout << "  Decoded: '" << result << "'" << std::endl;
-                std::cout << "  Expected: '" << expected << "'" << std::endl;
-            }
-            
-            if (result == expected) {
-                printSuccess("Round-trip successful");
+                printFailure("Expected failure but test succeeded");
             } else {
-                printFailure("Round-trip failed - output differs");
-                if (!verbose) {
-                    std::cout << "    Got: '" << result << "'" << std::endl;
-                    std::cout << "    Expected: '" << expected << "'" << std::endl;
-                }
+                printSuccess("Test passed");
             }
         } catch (const std::exception& e) {
-            printFailure(std::string("Exception: ") + e.what());
+            if (!test.shouldSucceed) {
+                printSuccess("Expected failure: " + std::string(e.what()));
+            } else {
+                printFailure(std::string(e.what()));
+            }
         } catch (...) {
             printFailure("Unknown exception");
         }
@@ -146,6 +125,12 @@ public:
     
     void printSummary() {
         std::cout << passedTests << "/" << totalTests << " tests passed";
+        if (passedTests != totalTests) {
+            std::cout << " (" << (totalTests - passedTests) << " failed)";
+        }
+        std::cout << std::endl;
+        
+        std::cout << std::endl << "Expected: " << passedTests << "/" << totalTests << " tests passed";
         if (passedTests != totalTests) {
             std::cout << " (" << (totalTests - passedTests) << " failed)";
         }

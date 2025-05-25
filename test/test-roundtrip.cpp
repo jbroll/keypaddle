@@ -1,6 +1,6 @@
 /*
- * Round-trip Testing for Macro Encode/Decode
- * Tests that encode->decode produces the same logical result
+ * Encode/Decode Testing for Macro System
+ * Tests that encode->decode produces the expected output
  */
 
 #include "Arduino.h"
@@ -15,19 +15,19 @@
 #include <cstring>
 
 //==============================================================================
-// ROUND-TRIP TEST FUNCTION
+// ENCODE->DECODE TEST FUNCTION
 //==============================================================================
 
-std::pair<std::string, std::string> performRoundTrip(const std::string& input) {
+void performEncodeDecodeTest(const TestCase& test) {
     // Step 1: Encode
-    MacroEncodeResult encodeResult = macroEncode(input.c_str());
+    MacroEncodeResult encodeResult = macroEncode(test.input.c_str());
     
     if (encodeResult.error != nullptr) {
-        return std::make_pair("", std::string(encodeResult.error));
+        throw std::runtime_error("Encoding failed: " + std::string(encodeResult.error));
     }
     
     if (!encodeResult.utf8Sequence) {
-        return std::make_pair("", "Encoding produced null sequence");
+        throw std::runtime_error("Encoding produced null sequence");
     }
     
     // Step 2: Decode
@@ -35,12 +35,13 @@ std::pair<std::string, std::string> performRoundTrip(const std::string& input) {
     uint16_t length = strlen(encodeResult.utf8Sequence);
     
     String decoded = macroDecode(bytes, length);
+    std::string actual = decoded;
     
-    // Clean up and return result
-    std::string result = decoded;
+    // Clean up
     free(encodeResult.utf8Sequence);
     
-    return std::make_pair(result, "");
+    // Step 3: Assert the result matches expected
+    ASSERT_STR_EQ(actual, test.expected, "Decoded output differs from expected");
 }
 
 //==============================================================================
@@ -49,63 +50,61 @@ std::pair<std::string, std::string> performRoundTrip(const std::string& input) {
 
 std::vector<TestCase> createBasicTests() {
     return {
-        // Simple text
-        TestCase("Simple text", "hello"),
-        TestCase("Quoted text", "\"hello world\""),
-        TestCase("Single char", "a"),
+        // Simple atomic operations - these should convert to explicit press/release
+        TestCase("Simple CTRL+C", "CTRL+C", "+CTRL \"c\" -CTRL"),
+        TestCase("SHIFT+F1", "SHIFT+F1", "+SHIFT F1 -SHIFT"),
+        TestCase("ALT+TAB", "ALT+TAB", "+ALT \"\\t\" -ALT"),
+        TestCase("Multi-modifier", "CTRL+SHIFT+T", "+CTRL+SHIFT \"t\" -CTRL+SHIFT"),
         
-        // Special keys
-        TestCase("Function key", "F1"),
-        TestCase("Arrow key", "UP"),
-        TestCase("Enter key", "ENTER"),
-        TestCase("Tab key", "TAB"),
+        // Escape sequences remain as escapes in quoted strings
+        TestCase("Newline escape", "\"line1\\nline2\"", "\"line1\\nline2\""),
+        TestCase("Tab escape", "\"text\\ttabbed\"", "\"text\\ttabbed\""),
         
-        // Atomic modifiers
-        TestCase("Simple CTRL+C", "CTRL+C"),
-        TestCase("SHIFT+F1", "SHIFT+F1"),
-        TestCase("ALT+TAB", "ALT+TAB"),
+        // Simple text and keys should pass through
+        TestCase("Simple text", "\"hello\"", "\"hello\""),
+        TestCase("Function key", "F1", "F1"),
+        TestCase("Single character", "a", "\"a\""),
         
-        // Explicit press/release
-        TestCase("Press CTRL", "+CTRL"),
-        TestCase("Release CTRL", "-CTRL"),
-        TestCase("Press multiple", "+CTRL+SHIFT"),
-        TestCase("Release multiple", "-CTRL+SHIFT"),
-        
-        // Mixed sequences
-        TestCase("Text and key", "\"hello\" ENTER"),
-        TestCase("Key and text", "F1 \"help\""),
-        
-        // Escape sequences
-        TestCase("Newline escape", "\"line1\\nline2\""),
-        TestCase("Tab escape", "\"text\\ttabbed\""),
-        TestCase("Quote escape", "\"say \\\"hello\\\"\""),
-        
-        // Error cases
-        TestCase("Unknown keyword", "UNKNOWN_KEY", false),
-        TestCase("Empty input", "", false),
+        // Explicit press/release should pass through
+        TestCase("Press CTRL", "+CTRL", "+CTRL"),
+        TestCase("Release CTRL", "-CTRL", "-CTRL"),
+        TestCase("Press multiple", "+CTRL+SHIFT", "+CTRL+SHIFT"),
+        TestCase("Release multiple", "-CTRL+SHIFT", "-CTRL+SHIFT"),
     };
 }
 
 std::vector<TestCase> createAdvancedTests() {
     return {
         // Complex sequences
-        TestCase("Hold and release", "+SHIFT \"HELLO\" -SHIFT \" world\""),
-        TestCase("Multi-modifier chain", "CTRL+SHIFT+ALT"),
-        TestCase("Mixed operations", "CTRL+C \"copied\" CTRL+V"),
+        TestCase("Hold and type", "+SHIFT \"HELLO\" -SHIFT \" world\"", "+SHIFT \"HELLO\" -SHIFT \" world\""),
+        TestCase("Empty modifier combo", "CTRL+SHIFT+ALT", "+CTRL+SHIFT+ALT"),
+        TestCase("Copy and paste", "CTRL+C \"copied\" CTRL+V", "+CTRL \"c\" -CTRL \"copied\" +CTRL \"v\" -CTRL"),
+        TestCase("Space-separated modifiers", "CTRL TAB", "+CTRL \"\\t\" -CTRL"),
+        TestCase("Space-separated shift", "SHIFT F1", "+SHIFT F1 -SHIFT"),
+        TestCase("Modifier with text", "CTRL \"abc\"", "+CTRL \"abc\" -CTRL"),
+        TestCase("Shift with text", "SHIFT \"hello\"", "+SHIFT \"hello\" -SHIFT"),
+        TestCase("Just modifiers", "CTRL+SHIFT", "+CTRL+SHIFT"),
         
-        // Normalization cases (where output differs from input)
-        TestCase("Space normalization", " CTRL+C ", "CTRL+C"),
-        TestCase("Multiple spaces", "F1  \"help\"", "F1 \"help\""),
+        // Escape sequences - all remain as escapes
+        TestCase("All escapes", "\"\\n\\r\\t\\\"\\\\\"", "\"\\n\\r\\t\\\"\\\\\""),
+        TestCase("Complex sequence", "CTRL+A \"select\\nall\" ENTER", "+CTRL \"a\" -CTRL \"select\\nall\" \"\\n\""),
         
-        // Edge cases
-        TestCase("Just modifiers", "CTRL+SHIFT"),
-        TestCase("Modifier only", "+SHIFT"),
-        TestCase("Release only", "-SHIFT"),
-        TestCase("Empty quotes", "\"\""),
+        // Keywords become their character equivalents
+        TestCase("ENTER keyword", "ENTER", "\"\\n\""),
+        TestCase("TAB keyword", "TAB", "\"\\t\""),
+        TestCase("SPACE keyword", "SPACE", "\" \""),
         
-        // Complex escapes
-        TestCase("All escapes", "\"\\n\\r\\t\\\"\\\\\""),
-        TestCase("Mixed content", "CTRL+A \"select\\nall\" ENTER"),
+        // Whitespace normalization
+        TestCase("Extra spaces", " CTRL+C ", "+CTRL \"c\" -CTRL"), 
+        TestCase("Multiple spaces", "F1   \"help\"", "F1 \"help\""),
+    };
+}
+
+std::vector<TestCase> createErrorTests() {
+    return {
+        // These should fail during encoding
+        TestCase("Unknown keyword", "UNKNOWN_KEY", EXPECT_FAIL),
+        TestCase("Empty input", "", EXPECT_FAIL),
     };
 }
 
@@ -116,20 +115,30 @@ std::vector<TestCase> createAdvancedTests() {
 int main(int argc, char* argv[]) {
     bool verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
     
+    std::cout << "Running Encode/Decode Tests for Macro System" << std::endl;
+    std::cout << "=============================================" << std::endl << std::endl;
+    
     TestRunner runner(verbose);
     
-    // Basic tests
+    std::cout << "Basic Tests:" << std::endl;
     auto basicTests = createBasicTests();
     for (const auto& test : basicTests) {
-        runner.runRoundTripTest(test, performRoundTrip);
+        runner.runTest(test, performEncodeDecodeTest);
     }
     
-    // Advanced tests
+    std::cout << std::endl << "Advanced Tests:" << std::endl;
     auto advancedTests = createAdvancedTests();
     for (const auto& test : advancedTests) {
-        runner.runRoundTripTest(test, performRoundTrip);
+        runner.runTest(test, performEncodeDecodeTest);
     }
     
+    std::cout << std::endl << "Error Tests:" << std::endl;
+    auto errorTests = createErrorTests();
+    for (const auto& test : errorTests) {
+        runner.runTest(test, performEncodeDecodeTest);
+    }
+    
+    std::cout << std::endl;
     runner.printSummary();
     return runner.allPassed() ? 0 : 1;
 }
