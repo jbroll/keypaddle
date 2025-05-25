@@ -1,6 +1,6 @@
 
 build:
-	arduino-cli compile --fqbn arduino:avr:leonardo --verbose .
+	arduino-cli compile --fqbn arduino:avr:leonardo .
 
 test:
 	cd test; $(MAKE) test

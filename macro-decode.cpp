@@ -6,116 +6,120 @@
 
 #include "map-parser-tables.h"
 
-//==============================================================================
-// INTELLIGENT DECOMPILER WITH STRING RECOGNITION
-//==============================================================================
-
 String macroDecode(const uint8_t* bytes, uint16_t length) {
   if (!bytes || length == 0) return F("(empty)");
   
   String result = "";
+  bool needSpace = false;
   
   for (uint16_t i = 0; i < length; ) {
+    // Add space between tokens
+    if (needSpace && result.length() > 0) {
+      result += " ";
+    }
+    needSpace = true;
+    
     uint8_t b = bytes[i];
     
+    // Check for control codes first
     switch (b) {
-      // Handle control codes
-      case UTF8_PRESS_CTRL:    result += F("[+CTRL]"); i++; break;
-      case UTF8_PRESS_ALT:     result += F("[+ALT]"); i++; break;
-      case UTF8_PRESS_SHIFT:   result += F("[+SHIFT]"); i++; break;
-      case UTF8_PRESS_CMD:     result += F("[+WIN]"); i++; break;
-      case UTF8_RELEASE_CTRL:  result += F("[-CTRL]"); i++; break;
-      case UTF8_RELEASE_ALT:   result += F("[-ALT]"); i++; break;
-      case UTF8_RELEASE_SHIFT: result += F("[-SHIFT]"); i++; break;
-      case UTF8_RELEASE_CMD:   result += F("[-WIN]"); i++; break;
+      case UTF8_PRESS_CTRL:    result += "+CTRL"; i++; continue;
+      case UTF8_PRESS_ALT:     result += "+ALT"; i++; continue;
+      case UTF8_PRESS_SHIFT:   result += "+SHIFT"; i++; continue;
+      case UTF8_PRESS_CMD:     result += "+WIN"; i++; continue;
+      case UTF8_RELEASE_CTRL:  result += "-CTRL"; i++; continue;
+      case UTF8_RELEASE_ALT:   result += "-ALT"; i++; continue;
+      case UTF8_RELEASE_SHIFT: result += "-SHIFT"; i++; continue;
+      case UTF8_RELEASE_CMD:   result += "-WIN"; i++; continue;
       
       case UTF8_PRESS_MULTI:
         if (i + 1 < length) {
           uint8_t mask = bytes[i + 1];
-          result += F("[+");
-          bool needPlus = false;
-          if (mask & MULTI_CTRL)  { result += F("CTRL"); needPlus = true; }
-          if (mask & MULTI_SHIFT) { if (needPlus) result += F("+"); result += F("SHIFT"); needPlus = true; }
-          if (mask & MULTI_ALT)   { if (needPlus) result += F("+"); result += F("ALT"); needPlus = true; }
-          if (mask & MULTI_CMD)   { if (needPlus) result += F("+"); result += F("WIN"); }
-          result += F("]");
+          result += "+";
+          bool first = true;
+          if (mask & MULTI_CTRL)  { result += "CTRL"; first = false; }
+          if (mask & MULTI_SHIFT) { if (!first) result += "+"; result += "SHIFT"; first = false; }
+          if (mask & MULTI_ALT)   { if (!first) result += "+"; result += "ALT"; first = false; }
+          if (mask & MULTI_CMD)   { if (!first) result += "+"; result += "WIN"; }
           i += 2;
         } else {
           i++;
         }
-        break;
+        continue;
         
       case UTF8_RELEASE_MULTI:
         if (i + 1 < length) {
           uint8_t mask = bytes[i + 1];
-          result += F("[-");
-          bool needPlus = false;
-          if (mask & MULTI_CTRL)  { result += F("CTRL"); needPlus = true; }
-          if (mask & MULTI_SHIFT) { if (needPlus) result += F("+"); result += F("SHIFT"); needPlus = true; }
-          if (mask & MULTI_ALT)   { if (needPlus) result += F("+"); result += F("ALT"); needPlus = true; }
-          if (mask & MULTI_CMD)   { if (needPlus) result += F("+"); result += F("WIN"); }
-          result += F("]");
+          result += "-";
+          bool first = true;
+          if (mask & MULTI_CTRL)  { result += "CTRL"; first = false; }
+          if (mask & MULTI_SHIFT) { if (!first) result += "+"; result += "SHIFT"; first = false; }
+          if (mask & MULTI_ALT)   { if (!first) result += "+"; result += "ALT"; first = false; }
+          if (mask & MULTI_CMD)   { if (!first) result += "+"; result += "WIN"; }
           i += 2;
         } else {
           i++;
         }
-        break;
-      
-      default:
-        // Check if this is a regular character sequence
-        if (isRegularCharacter(b)) {
-          // Look ahead to find consecutive regular characters
-          uint16_t stringStart = i;
-          uint16_t stringLength = 0;
-          
-          while (i < length && isRegularCharacter(bytes[i])) {
-            stringLength++;
-            i++;
-          }
-          
-          // If we found a sequence of regular characters, format as quoted string
-          if (stringLength > 1 || needsQuoting(bytes[stringStart])) {
-            result += F("\"");
-            for (uint16_t j = stringStart; j < stringStart + stringLength; j++) {
-              char c = (char)bytes[j];
-              // Handle escape sequences
-              if (c == '"') {
-                result += F("\\\"");
-              } else if (c == '\\') {
-                result += F("\\\\");
-              } else if (c == '\n') {
-                result += F("\\n");
-              } else if (c == '\r') {
-                result += F("\\r");
-              } else if (c == '\t') {
-                result += F("\\t");
-              } else {
-                result += c;
-              }
-            }
-            result += F("\"");
-          } else {
-            // Single character that doesn't need quoting
-            result += (char)bytes[stringStart];
-          }
-        } else {
-          // Check if it's a known HID code with a keyword
-          const char* keyword = findKeywordForHID(b);
-          if (keyword) {
-            result += F("[");
-            result += keyword;
-            result += F("]");
-          } else {
-            // Unknown byte - show as hex
-            result += F("[0x");
-            if (b < 0x10) result += F("0");
-            result += String(b, HEX);
-            result += F("]");
-          }
-          i++;
-        }
-        break;
+        continue;
     }
+    
+    // Check if it's a keyword using lookup table
+    const char* keyword = findKeywordForHID(b);
+    if (keyword) {
+      result += keyword;
+      i++;
+      continue;
+    }
+    
+    // Handle regular characters - collect consecutive ones
+    if (isRegularCharacter(b)) {
+      uint16_t stringStart = i;
+      while (i < length && isRegularCharacter(bytes[i])) {
+        i++;
+      }
+      uint16_t stringLength = i - stringStart;
+      
+      // Use existing utility to check if we need quotes
+      bool needsQuotes = (stringLength > 1);
+      if (stringLength == 1) {
+        needsQuotes = needsQuoting(bytes[stringStart]);
+      } else {
+        // Check if any character in the string needs quoting
+        for (uint16_t j = stringStart; j < i && !needsQuotes; j++) {
+          if (needsQuoting(bytes[j])) {
+            needsQuotes = true;
+          }
+        }
+      }
+      
+      if (needsQuotes) {
+        result += "\"";
+        for (uint16_t j = stringStart; j < i; j++) {
+          char c = (char)bytes[j];
+          switch (c) {
+            case '"':  result += "\\\""; break;
+            case '\\': result += "\\\\"; break;
+            case '\n': result += "\\n"; break;
+            case '\r': result += "\\r"; break;
+            case '\t': result += "\\t"; break;
+            case '\a': result += "\\a"; break;
+            default:   result += c; break;
+          }
+        }
+        result += "\"";
+      } else {
+        // Single character that doesn't need quoting
+        result += (char)bytes[stringStart];
+      }
+      continue;
+    }
+    
+    // Unknown byte - show as hex
+    result += "[0x";
+    if (b < 0x10) result += "0";
+    result += String(b, HEX);
+    result += "]";
+    i++;
   }
   
   return result;
