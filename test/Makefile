@@ -1,9 +1,24 @@
 # test/Makefile
-test-parser: test-parser.cpp ../map-parser.cpp ../macro-decompiler.cpp ../map-parser-tables.cpp
-	g++ -I. -I.. -o test-parser $^
 
-test: test-parser
-	./test-parser
+CXX = g++
+CXXFLAGS = -I. -I.. -std=c++11 -Wall -Wextra -g
+
+# Source files from parent directory
+PARSER_SOURCES = ../macro-encode.cpp ../macro-decode.cpp ../map-parser-tables.cpp
+
+# Test executables
+TESTS = test-macro-encode-decode
+
+.PHONY: all test clean
+
+all: $(TESTS)
+
+test-macro-encode-decode: test-macro-encode-decode.cpp $(PARSER_SOURCES)
+	$(CXX) $(CXXFLAGS) -o $@ $^
+
+test: $(TESTS)
+	@echo "Running macro encode/decode tests..."
+	./test-macro-encode-decode
 
 clean:
-	rm -f test-parser
+	rm -f $(TESTS)

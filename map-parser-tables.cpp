@@ -83,7 +83,7 @@ uint8_t findHIDCodeForKeyword(const char* keyword) {
   return 0;
 }
 
-static uint8_t findModifierBit(const char* name) {
+uint8_t findModifierBit(const char* name) {
   if (strcasecmp(name, "CTRL") == 0) return MULTI_CTRL;
   if (strcasecmp(name, "SHIFT") == 0) return MULTI_SHIFT;
   if (strcasecmp(name, "ALT") == 0) return MULTI_ALT;
