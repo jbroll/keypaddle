@@ -8,9 +8,9 @@
 #define SERIAL_INTERFACE_H
 
 #include <Arduino.h>
+#include "macro-encode.h"
+#include "macro-decode.h"
 #include "storage.h"
-#include "map-parser.h"
-#include "macro-decompiler.h"
 #include "switches-teensy.h"
 
 //==============================================================================

@@ -10,7 +10,7 @@
 // INTELLIGENT DECOMPILER WITH STRING RECOGNITION
 //==============================================================================
 
-String decodeUTF8Macro(const uint8_t* bytes, uint16_t length) {
+String macroDecode(const uint8_t* bytes, uint16_t length) {
   if (!bytes || length == 0) return F("(empty)");
   
   String result = "";

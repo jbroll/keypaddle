@@ -14,6 +14,6 @@
 //==============================================================================
 
 // Convert UTF-8+ encoded macro back to human-readable format
-String decodeUTF8Macro(const uint8_t* bytes, uint16_t length);
+String macroDecode(const uint8_t* bytes, uint16_t length);
 
 #endif // MACRO_DECOMPILER_H

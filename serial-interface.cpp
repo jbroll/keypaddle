@@ -66,7 +66,6 @@ void cmdHelp() {
 }
 
 void cmdShow(const char* args) {
-  // Skip leading whitespace
   while (isspace(*args)) args++;
   
   // Check for "ALL"
@@ -76,7 +75,7 @@ void cmdShow(const char* args) {
       Serial.print(i);
       Serial.print(F(" DOWN: "));
       if (macros[i].downMacro && strlen(macros[i].downMacro) > 0) {
-        String readable = decodeUTF8Macro((const uint8_t*)macros[i].downMacro, strlen(macros[i].downMacro));
+        String readable = macroDecode((const uint8_t*)macros[i].downMacro, strlen(macros[i].downMacro));
         Serial.println(readable);
       } else {
         Serial.println();
@@ -86,7 +85,7 @@ void cmdShow(const char* args) {
       Serial.print(i);
       Serial.print(F(" UP: "));
       if (macros[i].upMacro && strlen(macros[i].upMacro) > 0) {
-        String readable = decodeUTF8Macro((const uint8_t*)macros[i].upMacro, strlen(macros[i].upMacro));
+        String readable = macroDecode((const uint8_t*)macros[i].upMacro, strlen(macros[i].upMacro));
         Serial.println(readable);
       } else {
         Serial.println();
@@ -117,24 +116,47 @@ void cmdShow(const char* args) {
   Serial.print(isUp ? F(" UP: ") : F(" DOWN: "));
   
   if (macro && strlen(macro) > 0) {
-    String readable = decodeUTF8Macro((const uint8_t*)macro, strlen(macro));
+    String readable = macroDecode((const uint8_t*)macro, strlen(macro));
     Serial.println(readable);
   } else {
     Serial.println(F("(empty)"));
   }
 }
 
-void cmdMap(const char* fullCommand) {
-  MapParseResult parsed = parseMapCommand(fullCommand);
+void cmdMap(const char* args) {
+  while (isspace(*args)) args++;
+
+  // Parse key number
+  char* endptr;
+  int key = strtol(args, &endptr, 10);
+  if (key < 0 || key >= MAX_SWITCHES || endptr == args) {
+    Serial.println(F("Invalid key 0-23"));
+    return;
+  }
+  args = endptr;
+
+  while (isspace(*args)) args++;
   
+  // Check for down/up event specifier
+  bool isUp = false;
+  
+  if (strcasecmp(args, "down") == 0) {
+      isUp = false;
+      args += 4;
+      while (isspace(*args)) args++;
+  } else if (strcasecmp(args, "up") == 0) {
+      isUp = true;
+      args += 2;
+      while (isspace(*args)) args++;
+  }
+
+  MacroEncodeResult parsed = macroEncode(args);
+
   if (parsed.error != nullptr) {
     Serial.print(F("Parse error: "));
     Serial.println(parsed.error);
     return;
   }
-  
-  uint8_t key = parsed.keyIndex;
-  bool isUp = parsed.isUpEvent;
   
   // Free existing macro
   char** target = isUp ? &macros[key].upMacro : &macros[key].downMacro;

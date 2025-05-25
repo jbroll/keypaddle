@@ -6,7 +6,7 @@
  */
 
 #include "config.h"
-#include "map-parser.h"
+#include "macro-encode.h"
 
 //==============================================================================
 // ERROR MESSAGES IN PROGMEM
@@ -32,22 +32,6 @@ static void skipWhitespace(const char** pos) {
   while (**pos && isWhitespace(**pos)) {
     (*pos)++;
   }
-}
-
-static bool parseInteger(const char** pos, int* result) {
-  const char* start = *pos;
-  *result = 0;
-  
-  if (!**pos || !isdigit(**pos)) {
-    return false;
-  }
-  
-  while (**pos && isdigit(**pos)) {
-    *result = *result * 10 + (**pos - '0');
-    (*pos)++;
-  }
-  
-  return *pos > start;
 }
 
 static bool addByte(uint8_t* buffer, int* pos, uint8_t byte) {
@@ -222,8 +206,8 @@ static bool parseModifierChain(const char* token, uint8_t* modifierMask, char* s
 // MAIN PARSER FUNCTION
 //==============================================================================
 
-MapParseResult parseMapCommand(const char* input) {
-  MapParseResult result = {0, 0, nullptr, nullptr};
+MacroEncodeResult macroEncode(const char* input) {
+  MacroEncodeResult result = {nullptr, nullptr};
   
   // Stack-allocated parsing buffer
   uint8_t parseBuffer[MAX_MACRO_LENGTH];
@@ -233,48 +217,6 @@ MapParseResult parseMapCommand(const char* input) {
   
   // Skip leading whitespace
   skipWhitespace(&pos);
-  
-  // Must start with MAP
-  if (strncasecmp(pos, "MAP", 3) != 0 || (pos[3] != '\0' && !isWhitespace(pos[3]))) {
-    result.error = ERR_INVALID_COMMAND;
-    return result;
-  }
-  pos += 3;
-  
-  skipWhitespace(&pos);
-  
-  // Parse key index
-  int keyIndex;
-  if (!parseInteger(&pos, &keyIndex)) {
-    result.error = ERR_MISSING_KEY;
-    return result;
-  }
-  
-  if (keyIndex < 0 || keyIndex >= MAX_SWITCHES) {
-    result.error = ERR_INVALID_KEY;
-    return result;
-  }
-  
-  result.keyIndex = keyIndex;
-  skipWhitespace(&pos);
-  
-  // Check for down/up event specifier
-  result.isUpEvent = false;
-  char eventToken[8];
-  const char* savedPos = pos;
-  
-  if (parseToken(&pos, eventToken, sizeof(eventToken))) {
-    if (strcasecmp(eventToken, "down") == 0) {
-      result.isUpEvent = false;
-      skipWhitespace(&pos);
-    } else if (strcasecmp(eventToken, "up") == 0) {
-      result.isUpEvent = true;
-      skipWhitespace(&pos);
-    } else {
-      // Not an event specifier - restore position
-      pos = savedPos;
-    }
-  }
   
   // Check if we have any macro content
   if (*pos == '\0') {

@@ -12,10 +12,10 @@
 // System modules using clean interface design
 #include "switches-teensy.h"     // Hardware interface and switch handling
 #include "macro-engine.h"        // UTF-8+ encoding/execution engine
+#include "macro-encode.h"        // UTF-8+ to executable conversion
+#include "macro-decode.h"        // UTF-8+ to human-readable conversion
 #include "storage.h"             // Dynamic memory and EEPROM management
-#include "map-parser.h"          // Enhanced MAP command parsing
 #include "serial-interface.h"    // Serial command processing
-#include "macro-decompiler.h"    // UTF-8+ to human-readable conversion
 
 //==============================================================================
 // SYSTEM STATE AND CONSTANTS
