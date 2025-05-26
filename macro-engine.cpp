@@ -7,6 +7,30 @@
 #include "map-parser-tables.h"
 #include <Keyboard.h>
 
+//==============================================================================
+// FUNCTION KEY HID CODE LOOKUP TABLE
+//==============================================================================
+
+// Map function key numbers (1-12) to HID key codes
+// Index 0 is unused, indices 1-12 correspond to F1-F12
+static const uint8_t FUNCTION_KEY_CODES[] = {
+  0x00,        // Index 0 - unused
+  KEY_F1,      // Index 1 - F1 = 0x3A
+  KEY_F2,      // Index 2 - F2 = 0x3B
+  KEY_F3,      // Index 3 - F3 = 0x3C
+  KEY_F4,      // Index 4 - F4 = 0x3D
+  KEY_F5,      // Index 5 - F5 = 0x3E
+  KEY_F6,      // Index 6 - F6 = 0x3F
+  KEY_F7,      // Index 7 - F7 = 0x40
+  KEY_F8,      // Index 8 - F8 = 0x41
+  KEY_F9,      // Index 9 - F9 = 0x42
+  KEY_F10,     // Index 10 - F10 = 0x43
+  KEY_F11,     // Index 11 - F11 = 0x44
+  KEY_F12      // Index 12 - F12 = 0x45
+};
+
+#define NUM_FUNCTION_KEYS 12
+
 void executeUTF8Macro(const uint8_t* bytes, uint16_t length) {
   if (!bytes || length == 0) return;
   
@@ -45,6 +69,20 @@ void executeUTF8Macro(const uint8_t* bytes, uint16_t length) {
           if (mask & MULTI_ALT)   Keyboard.release(KEY_LEFT_ALT);
           if (mask & MULTI_CMD)   Keyboard.release(KEY_LEFT_GUI);
         }
+        break;
+      
+      // Function key 2-byte encoding
+      case UTF8_FUNCTION_KEY:
+        if (i + 1 < length) {
+          uint8_t keyNum = bytes[++i];
+          // Validate function key number (1-12)
+          if (keyNum >= 1 && keyNum <= NUM_FUNCTION_KEYS) {
+            uint8_t hidCode = FUNCTION_KEY_CODES[keyNum];
+            Keyboard.write(hidCode);
+          }
+          // If invalid, silently ignore (as requested)
+        }
+        // If no next byte available, silently ignore
         break;
       
       // All other bytes are direct HID codes or printable characters
