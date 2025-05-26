@@ -11,6 +11,7 @@
 //==============================================================================
 
 #include "commands/readline.cpp"
+#include "commands/cmd-parsing.cpp"
 
 //==============================================================================
 // INDIVIDUAL COMMAND IMPLEMENTATIONS
@@ -24,6 +25,7 @@
 #include "commands/cmd-load.cpp"
 #include "commands/cmd-save.cpp"
 #include "commands/cmd-stat.cpp"
+
 
 //==============================================================================
 // COMMAND PROCESSING

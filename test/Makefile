@@ -1,7 +1,7 @@
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall -Wno-unused-variable -Wno-sign-compare -I. -I..
 
-test: test-macros test-execution test-storage test-serial
+test: clean test-macros test-execution test-storage test-serial
 	./test-macros
 	./test-execution
 	./test-storage
@@ -16,7 +16,11 @@ test-execution: test-execution.cpp Arduino.cpp Keyboard.h ../map-parser-tables.c
 test-storage: test-storage.cpp Arduino.cpp EEPROM.cpp ../storage.cpp ../map-parser-tables.cpp ../macro-encode.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-test-serial: test-serial.cpp Arduino.cpp Serial.cpp EEPROM.cpp ../storage.cpp ../map-parser-tables.cpp ../macro-encode.cpp ../macro-decode.cpp ../serial-interface.cpp
+test-serial: test-serial.cpp \
+				Arduino.cpp Serial.cpp EEPROM.cpp \
+				../storage.cpp ../map-parser-tables.cpp \
+				../macro-encode.cpp ../macro-decode.cpp \
+				../serial-interface.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 test-micro-test: test-micro-test.cpp Arduino.cpp
