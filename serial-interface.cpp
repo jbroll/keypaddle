@@ -47,8 +47,7 @@ void processCommand(const char* cmd) {
     cmdShow(args);
   }
   else if (strncasecmp(cmd, "MAP", 3) == 0) {
-    // Pass full original command since MAP parser expects it
-    cmdMap(cmd);
+    cmdMap(args);
   }
   else if (strncasecmp(cmd, "CLEAR", 5) == 0) {
     cmdClear(args);

@@ -14,5 +14,5 @@ void cmdStat() {
   extern int __heap_start, *__brkval;
   int v;
   Serial.print(F("Free RAM: ~"));
-  Serial.println((int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval));
+  Serial.println((int)((intptr_t)&v - (__brkval == 0 ? (intptr_t)&__heap_start : (intptr_t)__brkval)));
 }

@@ -14,6 +14,8 @@
 #include <sstream>
 #include <iomanip>
 
+#include "Serial.h"
+
 //==============================================================================
 // ARDUINO TYPES AND CONSTANTS
 //==============================================================================
@@ -26,6 +28,14 @@ typedef const char* __FlashStringHelper;
 // Arduino constants (must be defined before String class)
 #define HEX 16
 #define DEC 10
+
+//==============================================================================
+// ARDUINO MEMORY MANAGEMENT SYMBOLS (for testing)
+//==============================================================================
+
+// Declare the symbols that Arduino code expects (defined in Arduino.cpp)
+extern int __heap_start;
+extern int* __brkval;
 
 // Arduino String class with essential methods
 class String {

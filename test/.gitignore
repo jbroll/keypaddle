@@ -2,5 +2,6 @@
 test-execution
 test-macros
 test-micro-test
+test-serial
 test-storage
 

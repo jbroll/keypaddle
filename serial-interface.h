@@ -9,7 +9,7 @@
 
 #include <Arduino.h>
 #include "macro-encode.h"
-#include "macro-decode.h"
+#include "macro-decode.h" 
 #include "storage.h"
 #include "switches-teensy.h"
 
@@ -20,5 +20,8 @@
 // Setup and loop functions
 void setupSerialInterface();
 void loopSerialInterface();
+
+// Command processing function (exposed for testing)
+void processCommand(const char* cmd);
 
 #endif // SERIAL_INTERFACE_H
