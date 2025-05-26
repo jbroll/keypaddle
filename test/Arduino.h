@@ -60,10 +60,6 @@ public:
     operator std::string() const { return str; }
 };
 
-// Arduino constants
-#define HEX 16
-#define DEC 10
-
 //==============================================================================
 // PROGMEM UTILITIES
 //==============================================================================
@@ -84,34 +80,5 @@ inline int strcasecmp(const char* s1, const char* s2) {
     }
     return tolower(*s1) - tolower(*s2);
 }
-
-//==============================================================================
-// TEENSY KEYBOARD CONSTANTS
-//==============================================================================
-
-// HID key codes for special keys
-#define KEY_F1          0x3A
-#define KEY_F2          0x3B
-#define KEY_F3          0x3C
-#define KEY_F4          0x3D
-#define KEY_F5          0x3E
-#define KEY_F6          0x3F
-#define KEY_F7          0x40
-#define KEY_F8          0x41
-#define KEY_F9          0x42
-#define KEY_F10         0x43
-#define KEY_F11         0x44
-#define KEY_F12         0x45
-
-#define KEY_UP_ARROW    0x52
-#define KEY_DOWN_ARROW  0x51
-#define KEY_LEFT_ARROW  0x50
-#define KEY_RIGHT_ARROW 0x4F
-
-#define KEY_HOME        0x4A
-#define KEY_END         0x4D
-#define KEY_PAGE_UP     0x4B
-#define KEY_PAGE_DOWN   0x4E
-#define KEY_DELETE      0x4C
 
 #endif // ARDUINO_H
