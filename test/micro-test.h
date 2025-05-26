@@ -10,6 +10,17 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <sstream>
+
+//==============================================================================
+// UTILITY FUNCTIONS
+//==============================================================================
+
+// Extract just the filename from a full path
+inline std::string getFileName(const std::string& path) {
+    size_t pos = path.find_last_of("/\\");
+    return (pos == std::string::npos) ? path : path.substr(pos + 1);
+}
 
 //==============================================================================
 // TEST EXPECTATION CONSTANTS
@@ -101,7 +112,7 @@ public:
             
             // If we get here and shouldSucceed is false, that's wrong
             if (!test.shouldSucceed) {
-                printFailure("Expected failure but test succeeded");
+                printFailure(test.name + ": Expected failure but test succeeded");
             } else {
                 printSuccess("Test passed");
             }
@@ -109,10 +120,12 @@ public:
             if (!test.shouldSucceed) {
                 printSuccess("Expected failure: " + std::string(e.what()));
             } else {
-                printFailure(std::string(e.what()));
+                // Re-throw with test name prepended for better error tracking
+                std::string enhancedMessage = test.name + ": " + std::string(e.what());
+                printFailure(enhancedMessage);
             }
         } catch (...) {
-            printFailure("Unknown exception");
+            printFailure(test.name + ": Unknown exception");
         }
         
         if (verbose) std::cout << std::endl;
@@ -149,28 +162,43 @@ public:
 // ASSERTION MACROS
 //==============================================================================
 
+#define ASSERT_FAIL(msg) \
+    do { \
+        std::ostringstream oss; \
+        oss << "at " << getFileName(__FILE__) << ":" << __LINE__ << ": " << (msg); \
+        throw std::runtime_error(oss.str()); \
+    } while(0)
+
 #define ASSERT_TRUE(condition, message) \
     do { \
         if (!(condition)) { \
-            throw std::runtime_error(std::string("Assertion failed: ") + (message)); \
+            std::ostringstream oss; \
+            oss << "at " << getFileName(__FILE__) << ":" << __LINE__ << ": " \
+                << "Assertion failed: " << (message); \
+            throw std::runtime_error(oss.str()); \
         } \
     } while(0)
 
 #define ASSERT_EQ(actual, expected, message) \
     do { \
         if ((actual) != (expected)) { \
-            throw std::runtime_error(std::string("Assertion failed: ") + (message) + \
-                                   " (got: " + std::to_string(actual) + \
-                                   ", expected: " + std::to_string(expected) + ")"); \
+            std::ostringstream oss; \
+            oss << "at " << getFileName(__FILE__) << ":" << __LINE__ << ": " \
+                << "Assertion failed: " << (message) \
+                << " (got: " << (actual) << ", expected: " << (expected) << ")"; \
+            throw std::runtime_error(oss.str()); \
         } \
     } while(0)
 
 #define ASSERT_STR_EQ(actual, expected, message) \
     do { \
         if (std::string(actual) != std::string(expected)) { \
-            throw std::runtime_error(std::string("Assertion failed: ") + (message) + \
-                                   " (got: '" + std::string(actual) + \
-                                   "', expected: '" + std::string(expected) + "')"); \
+            std::ostringstream oss; \
+            oss << "at " << getFileName(__FILE__) << ":" << __LINE__ << ": " \
+                << "Assertion failed: " << (message) \
+                << " (got: '" << std::string(actual) \
+                << "', expected: '" << std::string(expected) << "')"; \
+            throw std::runtime_error(oss.str()); \
         } \
     } while(0)
 

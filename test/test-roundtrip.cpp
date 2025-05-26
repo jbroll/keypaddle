@@ -23,11 +23,11 @@ void performEncodeDecodeTest(const TestCase& test) {
     MacroEncodeResult encodeResult = macroEncode(test.input.c_str());
     
     if (encodeResult.error != nullptr) {
-        throw std::runtime_error("Encoding failed: " + std::string(encodeResult.error));
+        ASSERT_FAIL("Encoding failed: " + std::string(encodeResult.error));
     }
     
     if (!encodeResult.utf8Sequence) {
-        throw std::runtime_error("Encoding produced null sequence");
+        ASSERT_FAIL("Encoding produced null sequence");
     }
     
     // Step 2: Decode
