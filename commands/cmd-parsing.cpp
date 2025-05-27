@@ -15,7 +15,7 @@ bool parseSwitchAndDirection(const char* args, int* switchNum, int* direction, c
   }
   
   *switchNum = key;
-  *direction = DIRECTION_DOWN; // Default direction
+  *direction = DIRECTION_UNK;
   
   // Skip whitespace after switch number
   while (isspace(*endptr)) endptr++;
@@ -34,8 +34,6 @@ bool parseSwitchAndDirection(const char* args, int* switchNum, int* direction, c
     } else if (wordLen == 4 && strncasecmp(endptr, "DOWN", 4) == 0) {
       *direction = DIRECTION_DOWN;
       endptr = (char*) wordEnd;
-    } else {
-      *direction = DIRECTION_UNK;
     }
   }
   

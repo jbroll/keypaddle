@@ -7,13 +7,22 @@
 #include "cmd-parsing.h"
 
 void cmdClearWithSwitchAndDirection(int switchNum, int direction, const char* remainingArgs) {
-  char** target = (direction == DIRECTION_UP) ? &macros[switchNum].upMacro : &macros[switchNum].downMacro;
-  
-  if (*target) {
-    free(*target);
-    *target = nullptr;
+  if (direction == DIRECTION_DOWN || direction == DIRECTION_UNK) {
+    // Clear both up and down macros when direction is unknown/ambiguous
+    if (macros[switchNum].downMacro) {
+      free(macros[switchNum].downMacro);
+      macros[switchNum].downMacro = nullptr;
+    }
   }
+  if (direction == DIRECTION_UP || direction == DIRECTION_UNK) {
+    if (macros[switchNum].upMacro) {
+      free(macros[switchNum].upMacro);
+      macros[switchNum].upMacro = nullptr;
+    }
+  }
+  
   Serial.println(F("Cleared"));
+  return;
 }
 
 void cmdClear(const char* args) {

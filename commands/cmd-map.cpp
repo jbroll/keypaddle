@@ -7,6 +7,10 @@
 #include "cmd-parsing.h"
 
 void cmdMapWithSwitchAndDirection(int switchNum, int direction, const char* remainingArgs) {
+  if (direction == DIRECTION_UNK) {
+    direction = DIRECTION_DOWN;
+  }
+  
   MacroEncodeResult parsed = macroEncode(remainingArgs);
 
   if (parsed.error != nullptr) {

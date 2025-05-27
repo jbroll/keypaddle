@@ -6,19 +6,35 @@
 
 #include "cmd-parsing.h"
 
-void cmdShowWithSwitchAndDirection(int switchNum, int direction, const char* remainingArgs) {
-  const char* macro = (direction == DIRECTION_UP) ? macros[switchNum].upMacro : macros[switchNum].downMacro;
-  
-  Serial.print(F("Key "));
-  Serial.print(switchNum);
-  Serial.print((direction == DIRECTION_UP) ? F(" UP: ") : F(" DOWN: "));
-  
-  if (macro && strlen(macro) > 0) {
-    String readable = macroDecode((const uint8_t*)macro, strlen(macro));
-    Serial.println(readable);
-  } else {
-    Serial.println(F("(empty)"));
+void printMacro(int switchNum, int direction) {
+  if (direction == DIRECTION_DOWN || direction == DIRECTION_UNK) {
+    Serial.print(F("Key "));
+    Serial.print(switchNum);
+    Serial.print(F(" DOWN: "));
+    if (macros[switchNum].downMacro && strlen(macros[switchNum].downMacro) > 0) {
+      String readable = macroDecode((const uint8_t*)macros[switchNum].downMacro, strlen(macros[switchNum].downMacro));
+      Serial.println(readable);
+    } else {
+      Serial.println(F("(empty)"));
+    }
   }
+    
+  if (direction == DIRECTION_UP || direction == DIRECTION_UNK) {
+    Serial.print(F("Key "));
+    Serial.print(switchNum);
+    Serial.print(F(" UP: "));
+    if (macros[switchNum].upMacro && strlen(macros[switchNum].upMacro) > 0) {
+      String readable = macroDecode((const uint8_t*)macros[switchNum].upMacro, strlen(macros[switchNum].upMacro));
+      Serial.println(readable);
+    } else {
+      Serial.println(F("(empty)"));
+    }
+    return;
+  }
+}
+
+void cmdShowWithSwitchAndDirection(int switchNum, int direction, const char* remainingArgs) {
+    printMacro(switchNum, direction);
 }
 
 void cmdShow(const char* args) {
@@ -27,25 +43,7 @@ void cmdShow(const char* args) {
   // Check for "ALL" special case
   if (strncasecmp(args, "ALL", 3) == 0 && (args[3] == '\0' || isspace(args[3]))) {
     for (int i = 0; i < MAX_SWITCHES; i++) {
-      // Down macro
-      Serial.print(i);
-      Serial.print(F(" DOWN: "));
-      if (macros[i].downMacro && strlen(macros[i].downMacro) > 0) {
-        String readable = macroDecode((const uint8_t*)macros[i].downMacro, strlen(macros[i].downMacro));
-        Serial.println(readable);
-      } else {
-        Serial.println();
-      }
-      
-      // Up macro
-      Serial.print(i);
-      Serial.print(F(" UP: "));
-      if (macros[i].upMacro && strlen(macros[i].upMacro) > 0) {
-        String readable = macroDecode((const uint8_t*)macros[i].upMacro, strlen(macros[i].upMacro));
-        Serial.println(readable);
-      } else {
-        Serial.println();
-      }
+        printMacro(i, DIRECTION_UNK);
     }
     return;
   }
