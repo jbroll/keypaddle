@@ -1,0 +1,3 @@
+
+FQBN=rp2040:rp2040:rpipico
+PORT=/dev/ttyACM0

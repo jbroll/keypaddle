@@ -1,10 +1,29 @@
 .PHONY: test
 
+-include CONFIG
+
 build:
-	arduino-cli compile --fqbn arduino:avr:leonardo .
+	arduino-cli compile --fqbn $(FQBN) .
+upload:
+	arduino-cli upload --fqbn $(FQBN) -p $(PORT) .
 
 test:
 	cd test; $(MAKE) test
+
+pico:
+	rm CONFIG
+	ln -s config/CONFIG.rpipico CONFIG
+	$(MAKE) build
+
+kb2040:
+	rm CONFIG
+	ln -s config/CONFIG.kb2040 CONFIG
+	$(MAKE) build
+
+teensy:
+	rm CONFIG
+	ln -s config/CONFIG.teensy CONFIG
+	$(MAKE) build
 
 # Dependencies for the main sketch
 keypaddle.ino.hex: keypaddle.ino \
