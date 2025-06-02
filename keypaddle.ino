@@ -68,6 +68,9 @@ void loop() {
   uint32_t currentSwitchState = loopSwitches();
   
   if (currentSwitchState != lastSwitchState) {
+    Serial.print("Switches 0x");
+    Serial.print(currentSwitchState, HEX);
+    Serial.println();
     processSwitchChanges(currentSwitchState, lastSwitchState);
     lastSwitchState = currentSwitchState;
   }
