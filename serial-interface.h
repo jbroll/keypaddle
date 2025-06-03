@@ -11,7 +11,7 @@
 #include "macro-encode.h"
 #include "macro-decode.h" 
 #include "storage.h"
-#include "switches-teensy.h"
+#include "switches.h"
 
 //==============================================================================
 // SIMPLE INTERFACE

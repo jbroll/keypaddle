@@ -1,9 +1,10 @@
-.PHONY: test
+.PHONY: test teensy rpipico kb2040
 
 -include CONFIG
 
 build:
 	arduino-cli compile --fqbn $(FQBN) .
+
 upload:
 	arduino-cli upload --fqbn $(FQBN) -p $(PORT) .
 
@@ -11,24 +12,24 @@ test:
 	cd test; $(MAKE) test
 
 pico:
-	rm CONFIG
-	ln -s config/CONFIG.rpipico CONFIG
+	rm -f hardware
+	ln -s hardware.rpipico hardware
 	$(MAKE) build
 
 kb2040:
-	rm CONFIG
-	ln -s config/CONFIG.kb2040 CONFIG
+	rm -f hardware
+	ln -s hardware.kb2040 hardware
 	$(MAKE) build
 
 teensy:
-	rm CONFIG
-	ln -s config/CONFIG.teensy CONFIG
+	rm -f hardware
+	ln -s hardware.teensy hardware
 	$(MAKE) build
 
 # Dependencies for the main sketch
 keypaddle.ino.hex: keypaddle.ino \
 	config.h \
-	switches-teensy.h switches-teensy.cpp \
+	switches.h switches.cpp \
 	macro-engine.h macro-engine.cpp \
 	macro-encode.h macro-encode.cpp \
 	macro-decode.h macro-decode.cpp \

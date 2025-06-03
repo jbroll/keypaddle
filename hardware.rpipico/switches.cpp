@@ -1,10 +1,10 @@
 /*
- * switches-teensy.cpp
+ * switches.cpp
  * 
  * Implementation of 24-pin switch support for Teensy 2.0 (ATmega32U4)
  */
 
-#include "switches-teensy.h"
+#include "switches.h"
 
 //==============================================================================
 // PIN MAPPING TABLE

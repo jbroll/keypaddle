@@ -1,2 +1,3 @@
 
 FQBN=arduino:avr:leonardo
+PORT=/dev/ttyACM0
