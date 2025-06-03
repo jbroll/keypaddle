@@ -2,7 +2,7 @@
  * switches-pico.h
  * 
  * Complete GPIO switch support for Raspberry Pi Pico (RP2040)
- * Supports up to 26 switches using all available GPIO pins
+ * Uses shared RP2040SwitchesBase class
  * 
  * Pin mapping for RP2040:
  * - GPIO 0-28 available (GPIO 23, 24, 25 have special functions)
@@ -13,17 +13,15 @@
 #ifndef SWITCHES_PICO_H
 #define SWITCHES_PICO_H
 
-#include <Arduino.h>
-#include "config.h"
+#include "hardware.kb2040/rp2040-switches.h"
 
 #define MAX_SWITCHES 26  // Maximum realistic switch count for Pico
-#define DEBOUNCE_MS 50
 
 //==============================================================================
-// PICO GPIO CONFIGURATION
+// PICO GPIO PIN MAPPING
 //==============================================================================
 
-// GPIO pins available for switches on RP2040
+// Available GPIO pins for switches on RP2040
 // We exclude GPIO 23, 24, 25 as they're often used for:
 // - GPIO 23: SMPS Power Save pin
 // - GPIO 24: VBUS sense
@@ -32,42 +30,31 @@
 //
 // Available pins: 0-22, 26-28 = 26 total pins
 
-struct PicoGPIOMapping {
-  uint8_t gpio_num;      // GPIO number (0-28)
-  bool available;        // Whether this GPIO is suitable for switches
+const uint8_t PICO_GPIO_PINS[MAX_SWITCHES] = {
+  // GPIO 0-22 (23 pins) - general purpose I/O
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+  
+  // GPIO 26-28 (3 pins) - additional general purpose I/O
+  26, 27, 28
+  
+  // Excluded pins:
+  // GPIO 23: SMPS Power Save pin (can be used but may affect power)
+  // GPIO 24: VBUS sense (USB related)
+  // GPIO 25: On-board LED (conflicts with LED)
+  // GPIO 29: ADC3 only (no digital input capability)
 };
 
 //==============================================================================
 // PICO SWITCHES CLASS
 //==============================================================================
 
-class PicoSwitches {
-private:
-  uint32_t switch_state;
-  uint32_t last_change_time[MAX_SWITCHES];
-  uint32_t debounced_state;
-  uint8_t num_switches;
-  uint8_t gpio_pins[MAX_SWITCHES];  // Actual GPIO pin numbers used
-  
-  void initializeGPIOPins();
-  
+class PicoSwitches : public RP2040SwitchesBase {
 public:
-  PicoSwitches(uint8_t num_pins = MAX_SWITCHES);
-  
-  // Initialize all switch pins with pull-ups
-  void begin();
-  
-  // Fast read of all switches 
-  uint32_t readAllSwitches();
-  
-  // Update with debouncing
-  uint32_t update();
-  
-  // Get the GPIO pin number for a given switch index
-  uint8_t getGPIOPin(uint8_t switchIndex) const;
-  
-  // Get the number of configured switches
-  uint8_t getNumSwitches() const { return num_switches; }
+    PicoSwitches(uint8_t num_pins = MAX_SWITCHES) 
+        : RP2040SwitchesBase(num_pins, PICO_GPIO_PINS, MAX_SWITCHES) {}
+    
+    // Inherit all functionality from base class
+    // No Pico-specific overrides needed
 };
 
 //==============================================================================
