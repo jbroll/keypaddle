@@ -1,64 +1,84 @@
 /*
- * switches-teensy.h
+ * switches-pico.h
  * 
- * Complete 24-pin switch support for Teensy 2.0 (ATmega32U4)
- * Supports all available digital I/O pins with efficient port-based scanning
+ * Complete GPIO switch support for Raspberry Pi Pico (RP2040)
+ * Supports up to 26 switches using all available GPIO pins
  * 
- * Pin mapping based on official Teensy 2.0 pinout:
- * - Arduino pins 0-23 (24 total pins)
- * - Distributed across PORTB, PORTC, PORTD, PORTE, PORTF
- * - All pins support internal pull-ups for switches
+ * Pin mapping for RP2040:
+ * - GPIO 0-28 available (GPIO 23, 24, 25 have special functions)
+ * - GPIO 29 is ADC-only, not suitable for digital input
+ * - We'll use GPIO 0-22 and 26-28 for maximum switch support (26 pins)
  */
 
-#ifndef SWITCHES_TEENSY_H
-#define SWITCHES_TEENSY_H
+#ifndef SWITCHES_PICO_H
+#define SWITCHES_PICO_H
 
 #include <Arduino.h>
-
 #include "config.h"
 
+#define MAX_SWITCHES 26  // Maximum realistic switch count for Pico
 #define DEBOUNCE_MS 50
 
-// Pin to Port/Bit mapping based on Teensy 2.0 pinout
-// Arduino Pin → Port.Bit mapping
-struct PinMapping {
-  volatile uint8_t* port_reg;    // PORT register for output/pullup
-  volatile uint8_t* pin_reg;     // PIN register for input reading  
-  volatile uint8_t* ddr_reg;     // DDR register for direction
-  uint8_t bit_mask;              // Bit mask for this pin
-  uint8_t arduino_pin;           // Arduino pin number
+//==============================================================================
+// PICO GPIO CONFIGURATION
+//==============================================================================
+
+// GPIO pins available for switches on RP2040
+// We exclude GPIO 23, 24, 25 as they're often used for:
+// - GPIO 23: SMPS Power Save pin
+// - GPIO 24: VBUS sense
+// - GPIO 25: On-board LED
+// - GPIO 29: ADC3 (ADC-only, no digital input)
+//
+// Available pins: 0-22, 26-28 = 26 total pins
+
+struct PicoGPIOMapping {
+  uint8_t gpio_num;      // GPIO number (0-28)
+  bool available;        // Whether this GPIO is suitable for switches
 };
 
-// Fast port reading using direct register access
-class TeensySwitches {
+//==============================================================================
+// PICO SWITCHES CLASS
+//==============================================================================
+
+class PicoSwitches {
 private:
   uint32_t switch_state;
   uint32_t last_change_time[MAX_SWITCHES];
   uint32_t debounced_state;
   uint8_t num_switches;
+  uint8_t gpio_pins[MAX_SWITCHES];  // Actual GPIO pin numbers used
+  
+  void initializeGPIOPins();
   
 public:
-  TeensySwitches(uint8_t num_pins = MAX_SWITCHES);
+  PicoSwitches(uint8_t num_pins = MAX_SWITCHES);
   
-  // Initialize all switch pins
+  // Initialize all switch pins with pull-ups
   void begin();
   
-  // Fast read of all switches using optimized port access
+  // Fast read of all switches 
   uint32_t readAllSwitches();
   
   // Update with debouncing
   uint32_t update();
+  
+  // Get the GPIO pin number for a given switch index
+  uint8_t getGPIOPin(uint8_t switchIndex) const;
+  
+  // Get the number of configured switches
+  uint8_t getNumSwitches() const { return num_switches; }
 };
 
 //==============================================================================
-// EXPECTED API
+// GLOBAL API
 //==============================================================================
 
 // Global instance
-extern TeensySwitches switches;
+extern PicoSwitches switches;
 
-// API functions
+// API functions expected by main code
 void setupSwitches();
 uint32_t loopSwitches();
 
-#endif // SWITCHES_TEENSY_H
+#endif // SWITCHES_PICO_H

@@ -32,7 +32,7 @@ struct SwitchMacros {
 // SHARED DATA (extern declaration)
 //==============================================================================
 
-extern SwitchMacros macros[MAX_SWITCHES];
+extern SwitchMacros macros[NUM_SWITCHES];
 
 //==============================================================================
 // STORAGE INTERFACE

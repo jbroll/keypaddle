@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#define MAX_SWITCHES 24
 #define DEBOUNCE_MS 50
 
 // Pin to Port/Bit mapping based on Teensy 2.0 pinout

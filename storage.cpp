@@ -1,7 +1,7 @@
 /*
  * UTF-8+ Storage System Implementation
  * 
- * EEPROM format: MAX_SWITCHES pairs of \0 terminated strings
+ * EEPROM format: NUM_SWITCHES pairs of \0 terminated strings
  */
 
 #include "config.h"
@@ -12,7 +12,7 @@
 // SHARED DATA STRUCTURE
 //==============================================================================
 
-SwitchMacros macros[MAX_SWITCHES];
+SwitchMacros macros[NUM_SWITCHES];
 
 //==============================================================================
 // PRIVATE HELPER FUNCTIONS
@@ -84,7 +84,7 @@ uint16_t writeStringToEEPROM(uint16_t offset, const char* str) {
 
 void setupStorage() {
   // Initialize all switch macros to nullptr
-  for (int i = 0; i < MAX_SWITCHES; i++) {
+  for (int i = 0; i < NUM_SWITCHES; i++) {
     macros[i].downMacro = nullptr;
     macros[i].upMacro = nullptr;
   }
@@ -101,7 +101,7 @@ bool loadFromStorage() {
   }
   
   // Clear existing macros
-  for (int i = 0; i < MAX_SWITCHES; i++) {
+  for (int i = 0; i < NUM_SWITCHES; i++) {
     freeMacroString(macros[i].downMacro);
     freeMacroString(macros[i].upMacro);
   }
@@ -110,7 +110,7 @@ bool loadFromStorage() {
   uint16_t offset = EEPROM_DATA_START;
   char buffer[256]; // Temporary buffer for reading strings
   
-  for (int i = 0; i < MAX_SWITCHES; i++) {
+  for (int i = 0; i < NUM_SWITCHES; i++) {
     // Read down macro
     offset = readStringFromEEPROM(offset, buffer, sizeof(buffer));
     if (offset == 0) return false; // Read error
@@ -133,7 +133,7 @@ bool saveToStorage() {
   // Write 24 pairs of \0 terminated strings
   uint16_t offset = EEPROM_DATA_START;
   
-  for (int i = 0; i < MAX_SWITCHES; i++) {
+  for (int i = 0; i < NUM_SWITCHES; i++) {
     // Write down macro (empty string if nullptr)
     offset = writeStringToEEPROM(offset, macros[i].downMacro);
     if (offset >= EEPROM.length()) return false; // Out of space

@@ -42,7 +42,7 @@ void cmdShow(const char* args) {
   
   // Check for "ALL" special case
   if (strncasecmp(args, "ALL", 3) == 0 && (args[3] == '\0' || isspace(args[3]))) {
-    for (int i = 0; i < MAX_SWITCHES; i++) {
+    for (int i = 0; i < NUM_SWITCHES; i++) {
         printMacro(i, DIRECTION_UNK);
     }
     return;

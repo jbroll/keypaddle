@@ -9,7 +9,7 @@ bool parseSwitchAndDirection(const char* args, int* switchNum, int* direction, c
   // Parse switch number
   char* endptr;
   int key = strtol(args, &endptr, 10);
-  if (key < 0 || key >= MAX_SWITCHES || endptr == args) {
+  if (key < 0 || key >= NUM_SWITCHES || endptr == args) {
     Serial.println(F("Invalid key 0-23"));
     return false;
   }

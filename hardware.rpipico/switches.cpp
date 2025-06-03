@@ -1,74 +1,61 @@
 /*
- * switches.cpp
+ * switches-pico.cpp
  * 
- * Implementation of 24-pin switch support for Teensy 2.0 (ATmega32U4)
+ * Implementation of GPIO switch support for Raspberry Pi Pico (RP2040)
+ * Supports up to 26 switches using available GPIO pins
  */
 
 #include "switches.h"
 
 //==============================================================================
-// PIN MAPPING TABLE
+// GPIO PIN MAPPING TABLE
 //==============================================================================
 
-// Complete pin mapping table for all 24 Teensy 2.0 pins
-static const PinMapping pin_mappings[MAX_SWITCHES] PROGMEM = {
-  // Arduino Pin 0-7 (Mixed ports)
-  {&PORTB, &PINB, &DDRB, _BV(0), 0},   // Pin 0  = PB0 (SS)
-  {&PORTB, &PINB, &DDRB, _BV(1), 1},   // Pin 1  = PB1 (SCLK)
-  {&PORTB, &PINB, &DDRB, _BV(2), 2},   // Pin 2  = PB2 (MOSI)
-  {&PORTB, &PINB, &DDRB, _BV(3), 3},   // Pin 3  = PB3 (MISO)
-  {&PORTB, &PINB, &DDRB, _BV(7), 4},   // Pin 4  = PB7 (PWM)
-  {&PORTD, &PIND, &DDRD, _BV(0), 5},   // Pin 5  = PD0 (SCL/PWM/INT0)
-  {&PORTD, &PIND, &DDRD, _BV(1), 6},   // Pin 6  = PD1 (SDA/INT1)
-  {&PORTD, &PIND, &DDRD, _BV(2), 7},   // Pin 7  = PD2 (RX/INT2)
+// Available GPIO pins for switches on RP2040
+// Ordered by preference - lower numbers first, avoiding special-purpose pins
+static const uint8_t AVAILABLE_GPIO_PINS[MAX_SWITCHES] = {
+  // GPIO 0-22 (23 pins) - general purpose I/O
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
   
-  // Arduino Pin 8-15  
-  {&PORTD, &PIND, &DDRD, _BV(3), 8},   // Pin 8  = PD3 (TX/INT3)
-  {&PORTC, &PINC, &DDRC, _BV(6), 9},   // Pin 9  = PC6 (PWM)
-  {&PORTC, &PINC, &DDRC, _BV(7), 10},  // Pin 10 = PC7 (PWM)
-  {&PORTD, &PIND, &DDRD, _BV(6), 11},  // Pin 11 = PD6 (PWM/LED)
-  {&PORTD, &PIND, &DDRD, _BV(7), 12},  // Pin 12 = PD7 (PWM)
-  {&PORTB, &PINB, &DDRB, _BV(4), 13},  // Pin 13 = PB4 (PWM)
-  {&PORTB, &PINB, &DDRB, _BV(5), 14},  // Pin 14 = PB5 (PWM)
-  {&PORTB, &PINB, &DDRB, _BV(6), 15},  // Pin 15 = PB6 (PWM)
+  // GPIO 26-28 (3 pins) - additional general purpose I/O
+  26, 27, 28
   
-  // Arduino Pin 16-23 (Analog pins used as digital)
-  {&PORTF, &PINF, &DDRF, _BV(7), 16},  // Pin 16 = PF7 (A0/ADC7)
-  {&PORTF, &PINF, &DDRF, _BV(6), 17},  // Pin 17 = PF6 (A1/ADC6)
-  {&PORTF, &PINF, &DDRF, _BV(5), 18},  // Pin 18 = PF5 (A2/ADC5)
-  {&PORTF, &PINF, &DDRF, _BV(4), 19},  // Pin 19 = PF4 (A3/ADC4)
-  {&PORTF, &PINF, &DDRF, _BV(1), 20},  // Pin 20 = PF1 (A4/ADC1)
-  {&PORTF, &PINF, &DDRF, _BV(0), 21},  // Pin 21 = PF0 (A5/ADC0)
-  {&PORTD, &PIND, &DDRD, _BV(4), 22},  // Pin 22 = PD4 (A6/ADC8)
-  {&PORTD, &PIND, &DDRD, _BV(5), 23},  // Pin 23 = PD5 (A7)
+  // Excluded pins:
+  // GPIO 23: SMPS Power Save pin (can be used but may affect power)
+  // GPIO 24: VBUS sense (USB related)
+  // GPIO 25: On-board LED (conflicts with LED)
+  // GPIO 29: ADC3 only (no digital input capability)
 };
 
 //==============================================================================
 // CLASS IMPLEMENTATION
 //==============================================================================
 
-TeensySwitches::TeensySwitches(uint8_t num_pins) : num_switches(min(num_pins, MAX_SWITCHES)) {
+PicoSwitches::PicoSwitches(uint8_t num_pins) : num_switches(min(num_pins, MAX_SWITCHES)) {
   switch_state = 0;
   debounced_state = 0;
+  
   for (int i = 0; i < MAX_SWITCHES; i++) {
     last_change_time[i] = 0;
   }
+  
+  initializeGPIOPins();
 }
 
-void TeensySwitches::begin() {
-  // Disable ADC to allow PORTF pins to work as digital I/O
-  ADCSRA &= ~_BV(ADEN);
-  
-  // Configure each pin as input with pull-up
+void PicoSwitches::initializeGPIOPins() {
+  // Map switch indices to actual GPIO pin numbers
   for (uint8_t i = 0; i < num_switches; i++) {
-    PinMapping mapping;
-    memcpy_P(&mapping, &pin_mappings[i], sizeof(PinMapping));
+    gpio_pins[i] = AVAILABLE_GPIO_PINS[i];
+  }
+}
+
+void PicoSwitches::begin() {
+  // Configure each GPIO pin as input with pull-up
+  for (uint8_t i = 0; i < num_switches; i++) {
+    uint8_t pin = gpio_pins[i];
     
-    // Set as input (clear DDR bit)
-    *mapping.ddr_reg &= ~mapping.bit_mask;
-    
-    // Enable pull-up (set PORT bit when pin is input)
-    *mapping.port_reg |= mapping.bit_mask;
+    // Use Arduino-style pin configuration for compatibility
+    pinMode(pin, INPUT_PULLUP);
   }
   
   // Small delay for pull-ups to stabilize
@@ -79,32 +66,16 @@ void TeensySwitches::begin() {
   debounced_state = switch_state;
 }
 
-uint32_t TeensySwitches::readAllSwitches() {
+uint32_t PicoSwitches::readAllSwitches() {
   uint32_t new_state = 0;
   
-  // Read all ports once to minimize register access
-  uint8_t portb_val = PINB;
-  uint8_t portc_val = PINC; 
-  uint8_t portd_val = PIND;
-  uint8_t portf_val = PINF;
-  
-  // Process each switch and build state bitmap
+  // Read each configured GPIO pin
   for (uint8_t i = 0; i < num_switches; i++) {
-    PinMapping mapping;
-    memcpy_P(&mapping, &pin_mappings[i], sizeof(PinMapping));
+    uint8_t pin = gpio_pins[i];
     
-    bool pressed = false;
-    
-    // Select the appropriate cached port value
-    if (mapping.pin_reg == &PINB) {
-      pressed = !(portb_val & mapping.bit_mask);  // Inverted for pull-up
-    } else if (mapping.pin_reg == &PINC) {
-      pressed = !(portc_val & mapping.bit_mask);
-    } else if (mapping.pin_reg == &PIND) {
-      pressed = !(portd_val & mapping.bit_mask);
-    } else if (mapping.pin_reg == &PINF) {
-      pressed = !(portf_val & mapping.bit_mask);
-    }
+    // Read pin state - digitalRead returns HIGH when not pressed (pull-up)
+    // We want bit set when pressed, so invert the reading
+    bool pressed = (digitalRead(pin) == LOW);
     
     if (pressed) {
       new_state |= (1UL << i);
@@ -115,7 +86,7 @@ uint32_t TeensySwitches::readAllSwitches() {
   return switch_state;
 }
 
-uint32_t TeensySwitches::update() {
+uint32_t PicoSwitches::update() {
   uint32_t current_state = readAllSwitches();
   uint32_t changed = current_state ^ debounced_state;
   uint32_t now = millis();
@@ -138,12 +109,19 @@ uint32_t TeensySwitches::update() {
   return debounced_state;
 }
 
+uint8_t PicoSwitches::getGPIOPin(uint8_t switchIndex) const {
+  if (switchIndex >= num_switches) {
+    return 255; // Invalid pin number
+  }
+  return gpio_pins[switchIndex];
+}
+
 //==============================================================================
 // GLOBAL INSTANCE AND API
 //==============================================================================
 
 // Global instance
-TeensySwitches switches;
+PicoSwitches switches;
 
 void setupSwitches() {
   switches.begin();

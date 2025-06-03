@@ -17,6 +17,10 @@
 #include "storage.h"             // Dynamic memory and EEPROM management
 #include "serial-interface.h"    // Serial command processing
 
+#if NUM_SWITCHES > MAX_SWITCHES
+    error - the number of switches requested exceeds the max for this hardware
+#endif
+
 //==============================================================================
 // SYSTEM STATE AND CONSTANTS
 //==============================================================================
