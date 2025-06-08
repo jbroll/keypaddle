@@ -14,10 +14,6 @@
 
 SwitchMacros macros[NUM_SWITCHES];
 
-//==============================================================================
-// PRIVATE HELPER FUNCTIONS
-//==============================================================================
-
 // Free a macro string if it exists
 void freeMacroString(char*& macroPtr) {
   if (macroPtr) {
@@ -26,38 +22,39 @@ void freeMacroString(char*& macroPtr) {
   }
 }
 
-// Allocate and copy a macro string (returns nullptr if empty or allocation fails)
-char* allocateMacroString(const char* source) {
-  if (!source || strlen(source) == 0) {
-    return nullptr;
+// Read a null-terminated string from EEPROM, returns new offset
+// Caller must free the returned string
+static uint16_t readStringFromEEPROM(uint16_t offset, char** str) {
+  *str = nullptr;
+  
+  // Find string length
+  uint16_t start = offset;
+  while (offset < EEPROM.length() && EEPROM.read(offset) != 0) {
+    offset++;
   }
   
-  size_t len = strlen(source);
-  char* newMacro = (char*)malloc(len + 1);
-  if (newMacro) {
-    strcpy(newMacro, source);
+  if (offset >= EEPROM.length()) return 0;  // No null terminator found
+  
+  size_t len = offset - start;
+  offset++;  // Skip null terminator
+  
+  if (len == 0) {
+    // Empty string - return null pointer
+    return offset;
   }
-  return newMacro;
+  
+  // Allocate and read string
+  *str = (char*)malloc(len + 1);
+  if (!*str) return 0;  // Allocation failed
+  
+  for (size_t i = 0; i < len; i++) {
+    (*str)[i] = EEPROM.read(start + i);
+  }
+  (*str)[len] = '\0';
+  
+  return offset;
 }
 
-// Read a \0 terminated string from EEPROM starting at offset
-// Returns new offset after the string, or 0 if error
-uint16_t readStringFromEEPROM(uint16_t offset, char* buffer, size_t maxLen) {
-  size_t len = 0;
-  
-  // Read characters until \0 or max length
-  while (len < maxLen - 1 && offset < EEPROM.length()) {
-    uint8_t ch = EEPROM.read(offset++);
-    buffer[len++] = ch;
-    if (ch == 0) {
-      return offset; // Found terminator, return next offset
-    }
-  }
-  
-  // If we get here, no terminator found or buffer full
-  buffer[len] = 0; // Ensure null termination
-  return (len < maxLen - 1) ? offset : 0; // Return 0 if error
-}
 
 // Write a \0 terminated string to EEPROM at offset
 // Returns new offset after the string
@@ -77,10 +74,6 @@ uint16_t writeStringToEEPROM(uint16_t offset, const char* str) {
   
   return offset;
 }
-
-//==============================================================================
-// PUBLIC INTERFACE FUNCTIONS
-//==============================================================================
 
 void setupStorage() {
   // Initialize all switch macros to nullptr
@@ -108,18 +101,18 @@ uint16_t loadFromStorage() {
   
   // Read 24 pairs of \0 terminated strings
   uint16_t offset = EEPROM_DATA_START;
-  char buffer[256]; // Temporary buffer for reading strings
+  char *macro;
   
   for (int i = 0; i < NUM_SWITCHES; i++) {
     // Read down macro
-    offset = readStringFromEEPROM(offset, buffer, sizeof(buffer));
-    if (offset == 0) return false; // Read error
-    macros[i].downMacro = allocateMacroString(buffer);
+    offset = readStringFromEEPROM(offset, &macro);
+    if (offset == 0) return 0; // Read error
+    macros[i].downMacro = macro;
     
     // Read up macro  
-    offset = readStringFromEEPROM(offset, buffer, sizeof(buffer));
-    if (offset == 0) return false; // Read error
-    macros[i].upMacro = allocateMacroString(buffer);
+    offset = readStringFromEEPROM(offset, &macro);
+    if (offset == 0) return 0; // Read error
+    macros[i].upMacro = macro;
   }
   
   return offset;

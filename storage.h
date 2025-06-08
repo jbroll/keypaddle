@@ -47,4 +47,12 @@ uint16_t loadFromStorage();
 // Save the switch macro pairs from macros[] array to EEPROM  
 uint16_t saveToStorage();
 
+// Write a null-terminated string to EEPROM at offset
+// Returns new offset after the string
+uint16_t writeStringToEEPROM(uint16_t offset, const char* str);
+
+// Read a null-terminated string from EEPROM, returns new offset
+// Caller must free the returned string
+uint16_t readStringFromEEPROM(uint16_t offset, char** str);
+
 #endif // STORAGE_H
