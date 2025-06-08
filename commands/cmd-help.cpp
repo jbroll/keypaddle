@@ -22,14 +22,9 @@ void cmdHelp() {
   Serial.println(F("CHORD LIST - list all chords"));
   Serial.println(F("CHORD CLEAR - clear all chords"));
   Serial.println(F("CHORD SAVE - save chords to EEPROM"));
+  Serial.println(F("CHORD MODIFIERS [keys] - set/show modifier keys"));
   Serial.println(F("CHORD LOAD - load chords from EEPROM"));
   Serial.println(F("CHORD STATUS - show chording status"));
-  
-  Serial.println(F("\n=== Modifier Keys ==="));
-  Serial.println(F("MODIFIER SET <key> - set key as modifier"));
-  Serial.println(F("MODIFIER UNSET <key> - unset key as modifier"));
-  Serial.println(F("MODIFIER LIST - list modifier keys"));
-  Serial.println(F("MODIFIER CLEAR - clear all modifiers"));
   
   Serial.println(F("\n=== System ==="));
   Serial.println(F("STAT - show status"));

@@ -34,6 +34,7 @@ keypaddle.ino.hex: keypaddle.ino \
 	macro-encode.h macro-encode.cpp \
 	macro-decode.h macro-decode.cpp \
 	storage.h storage.cpp \
+	chordStorage.h chordStorage.cpp \
 	serial-interface.h serial-interface.cpp \
 	map-parser-tables.h map-parser-tables.cpp \
 	commands/readline.h commands/readline.cpp \

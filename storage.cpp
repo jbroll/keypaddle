@@ -24,7 +24,7 @@ void freeMacroString(char*& macroPtr) {
 
 // Read a null-terminated string from EEPROM, returns new offset
 // Caller must free the returned string
-static uint16_t readStringFromEEPROM(uint16_t offset, char** str) {
+uint16_t readStringFromEEPROM(uint16_t offset, char** str) {
   *str = nullptr;
   
   // Find string length

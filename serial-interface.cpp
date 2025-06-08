@@ -23,6 +23,7 @@
 #include "commands/cmd-map.cpp"
 #include "commands/cmd-clear.cpp"
 #include "commands/cmd-load.cpp"
+#include "commands/cmd-chord.cpp"
 #include "commands/cmd-save.cpp"
 #include "commands/cmd-stat.cpp"
 
@@ -53,6 +54,9 @@ void processCommand(const char* cmd) {
   }
   else if (strncasecmp(cmd, "CLEAR", 5) == 0) {
     cmdClear(args);
+  }
+  else if (strncasecmp(cmd, "CHORD", 5) == 0) {
+    cmdChord(args);
   }
   else if (strncasecmp(cmd, "LOAD", 4) == 0) {
     cmdLoad();
