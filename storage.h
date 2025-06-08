@@ -42,9 +42,9 @@ extern SwitchMacros macros[NUM_SWITCHES];
 void setupStorage();
 
 // Load the switch macro pairs from EEPROM into macros[] array
-bool loadFromStorage();
+uint16_t loadFromStorage();
 
 // Save the switch macro pairs from macros[] array to EEPROM  
-bool saveToStorage();
+uint16_t saveToStorage();
 
 #endif // STORAGE_H

@@ -90,7 +90,7 @@ void setupStorage() {
   }
 }
 
-bool loadFromStorage() {
+uint16_t loadFromStorage() {
   // Check for magic number
   uint32_t magic;
   EEPROM.get(EEPROM_MAGIC_ADDR, magic);
@@ -122,10 +122,10 @@ bool loadFromStorage() {
     macros[i].upMacro = allocateMacroString(buffer);
   }
   
-  return true;
+  return offset;
 }
 
-bool saveToStorage() {
+uint16_t saveToStorage() {
   // Write magic number
   uint32_t magic = EEPROM_MAGIC_VALUE;
   EEPROM.put(EEPROM_MAGIC_ADDR, magic);
@@ -136,12 +136,12 @@ bool saveToStorage() {
   for (int i = 0; i < NUM_SWITCHES; i++) {
     // Write down macro (empty string if nullptr)
     offset = writeStringToEEPROM(offset, macros[i].downMacro);
-    if (offset >= EEPROM.length()) return false; // Out of space
+    if (offset >= EEPROM.length()) return 0; // Out of space
     
     // Write up macro (empty string if nullptr)
     offset = writeStringToEEPROM(offset, macros[i].upMacro);  
-    if (offset >= EEPROM.length()) return false; // Out of space
+    if (offset >= EEPROM.length()) return 0; // Out of space
   }
   
-  return true;
+  return offset;
 }
