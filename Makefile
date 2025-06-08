@@ -43,6 +43,8 @@ keypaddle.ino.hex: keypaddle.ino \
 	commands/cmd-clear.cpp \
 	commands/cmd-load.cpp \
 	commands/cmd-save.cpp \
+	commands/cmd-modifier.cpp \
+	commands/cmd-chord.cpp \
 	commands/cmd-stat.cpp
 
 # Clean target
