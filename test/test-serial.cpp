@@ -4,6 +4,7 @@
  */
 
 #include "Arduino.h"
+#include "Keyboard.h"
 #include "Serial.h"
 #include "EEPROM.h"
 #include "micro-test.h"
@@ -18,11 +19,7 @@
 #include <iostream>
 #include <cstring>
 
-//==============================================================================
-// GLOBAL INSTANCES (extern declaration in Serial.h)
-//==============================================================================
-
-// Serial instance is defined in Serial.cpp
+MockKeyboard Keyboard;
 
 //==============================================================================
 // TEST HELPER FUNCTIONS

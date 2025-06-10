@@ -24,7 +24,7 @@ void setupTestEnvironment() {
     Serial.clear();
     
     // Clear all macros
-    for (int i = 0; i < MAX_SWITCHES; i++) {
+    for (int i = 0; i < NUM_SWITCHES; i++) {
         if (macros[i].downMacro) {
             free(macros[i].downMacro);
             macros[i].downMacro = nullptr;
@@ -76,7 +76,7 @@ void testParseSwitchAndDirection(const TestCase& test) {
     
     if (test.expected == "VALID") {
         ASSERT_TRUE(result, "parseSwitchAndDirection should return true for valid input");
-        ASSERT_TRUE(switchNum >= 0 && switchNum < MAX_SWITCHES, "Switch number should be in valid range");
+        ASSERT_TRUE(switchNum >= 0 && switchNum < NUM_SWITCHES, "Switch number should be in valid range");
         ASSERT_TRUE(direction == DIRECTION_DOWN || direction == DIRECTION_UP || direction == DIRECTION_UNK, 
                    "Direction should be valid");
         ASSERT_TRUE(remainingArgs != nullptr, "Remaining args should not be null");

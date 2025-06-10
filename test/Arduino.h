@@ -6,6 +6,7 @@
 #ifndef ARDUINO_H
 #define ARDUINO_H
 
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
@@ -16,10 +17,6 @@
 
 #include "Serial.h"
 
-//==============================================================================
-// ARDUINO TYPES AND CONSTANTS
-//==============================================================================
-
 typedef const char* __FlashStringHelper;
 #define F(string_literal) (string_literal)
 #define PROGMEM
@@ -29,11 +26,15 @@ typedef const char* __FlashStringHelper;
 #define HEX 16
 #define DEC 10
 
-//==============================================================================
-// ARDUINO MEMORY MANAGEMENT SYMBOLS (for testing)
-//==============================================================================
+inline uint32_t millis() {
+    using namespace std::chrono;
 
-// Declare the symbols that Arduino code expects (defined in Arduino.cpp)
+    static auto start_time = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time);
+    return static_cast<uint32_t>(duration.count());
+}
+
 extern int __heap_start;
 extern int* __brkval;
 
@@ -69,10 +70,6 @@ public:
     // Conversion to std::string for test framework
     operator std::string() const { return str; }
 };
-
-//==============================================================================
-// PROGMEM UTILITIES
-//==============================================================================
 
 inline void* memcpy_P(void* dest, const void* src, size_t n) {
     return memcpy(dest, src, n);

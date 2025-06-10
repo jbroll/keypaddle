@@ -19,8 +19,10 @@ test-storage: test-storage.cpp Arduino.cpp EEPROM.cpp ../storage.cpp ../map-pars
 
 test-serial: test-serial.cpp \
 				Arduino.cpp Serial.cpp EEPROM.cpp \
-				../storage.cpp ../map-parser-tables.cpp \
-				../macro-encode.cpp ../macro-decode.cpp \
+				../storage.cpp ../chordStorage.cpp \
+				../chording.cpp \
+				../map-parser-tables.cpp \
+				../macro-engine.cpp ../macro-encode.cpp ../macro-decode.cpp \
 				../serial-interface.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
