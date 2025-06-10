@@ -6,7 +6,10 @@ build:
 	arduino-cli compile --fqbn $(FQBN) .
 
 upload:
-	arduino-cli upload --fqbn $(FQBN) -p $(PORT) .
+	arduino-cli upload --fqbn $(FQBN) -p $(PROG) .
+
+mon:
+	arduino-cli monitor --fqbn $(FQBN) -p $(PORT) .
 
 test:
 	cd test; $(MAKE) test

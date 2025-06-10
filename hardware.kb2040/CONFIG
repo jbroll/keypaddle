@@ -1,2 +1,3 @@
 FQBN=rp2040:rp2040:adafruit_kb2040
+PROG=/dev/ttyACM0
 PORT=/dev/ttyACM0

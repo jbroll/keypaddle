@@ -20,7 +20,7 @@
 //==============================================================================
 
 void clearAllMacros() {
-    for (int i = 0; i < MAX_SWITCHES; i++) {
+    for (int i = 0; i < NUM_SWITCHES; i++) {
         if (macros[i].downMacro) {
             free(macros[i].downMacro);
             macros[i].downMacro = nullptr;
@@ -33,7 +33,7 @@ void clearAllMacros() {
 }
 
 void setTestMacro(int keyIndex, const char* downMacro, const char* upMacro = nullptr) {
-    if (keyIndex < 0 || keyIndex >= MAX_SWITCHES) return;
+    if (keyIndex < 0 || keyIndex >= NUM_SWITCHES) return;
     
     // Clear existing macros
     if (macros[keyIndex].downMacro) {
@@ -58,7 +58,7 @@ void setTestMacro(int keyIndex, const char* downMacro, const char* upMacro = nul
 }
 
 bool compareMacros(int keyIndex, const char* expectedDown, const char* expectedUp = nullptr) {
-    if (keyIndex < 0 || keyIndex >= MAX_SWITCHES) return false;
+    if (keyIndex < 0 || keyIndex >= NUM_SWITCHES) return false;
     
     // Compare down macro
     if (expectedDown == nullptr || strlen(expectedDown) == 0) {
@@ -84,7 +84,7 @@ std::string macroToString(const char* macro) {
 }
 
 void printMacroState(int keyIndex) {
-    if (keyIndex < 0 || keyIndex >= MAX_SWITCHES) return;
+    if (keyIndex < 0 || keyIndex >= NUM_SWITCHES) return;
     
     std::cout << "  Key " << keyIndex << ": down=" 
               << macroToString(macros[keyIndex].downMacro)
@@ -108,7 +108,7 @@ void testEmptyStorageLoad(const TestCase& test) {
     ASSERT_TRUE(result == false, "loadFromStorage should return false for empty EEPROM");
     
     // All macros should remain null
-    for (int i = 0; i < MAX_SWITCHES; i++) {
+    for (int i = 0; i < NUM_SWITCHES; i++) {
         ASSERT_TRUE(macros[i].downMacro == nullptr, "Down macro should be null after failed load");
         ASSERT_TRUE(macros[i].upMacro == nullptr, "Up macro should be null after failed load");
     }
@@ -155,7 +155,7 @@ void testAllKeysPopulated(const TestCase& test) {
     setupStorage();
     
     // Set unique macros for all keys
-    for (int i = 0; i < MAX_SWITCHES; i++) {
+    for (int i = 0; i < NUM_SWITCHES; i++) {
         std::string downMacro = "down" + std::to_string(i);
         std::string upMacro = "up" + std::to_string(i);
         setTestMacro(i, downMacro.c_str(), upMacro.c_str());
@@ -167,7 +167,7 @@ void testAllKeysPopulated(const TestCase& test) {
     ASSERT_TRUE(loadFromStorage(), "Load should succeed");
     
     // Verify all keys
-    for (int i = 0; i < MAX_SWITCHES; i++) {
+    for (int i = 0; i < NUM_SWITCHES; i++) {
         std::string expectedDown = "down" + std::to_string(i);
         std::string expectedUp = "up" + std::to_string(i);
         ASSERT_TRUE(compareMacros(i, expectedDown.c_str(), expectedUp.c_str()), 

@@ -13,7 +13,7 @@
 
 // Map function key numbers (1-12) to HID key codes
 // Index 0 is unused, indices 1-12 correspond to F1-F12
-static const uint8_t FUNCTION_KEY_CODES[] = {
+static const uint16_t FUNCTION_KEY_CODES[] = {
   0x00,        // Index 0 - unused
   KEY_F1,      // Index 1 - F1 = 0x3A
   KEY_F2,      // Index 2 - F2 = 0x3B
@@ -77,7 +77,7 @@ void executeUTF8Macro(const uint8_t* bytes, uint16_t length) {
           uint8_t keyNum = bytes[++i];
           // Validate function key number (1-12)
           if (keyNum >= 1 && keyNum <= NUM_FUNCTION_KEYS) {
-            uint8_t hidCode = FUNCTION_KEY_CODES[keyNum];
+            uint16_t hidCode = FUNCTION_KEY_CODES[keyNum];
             Keyboard.write(hidCode);
           }
           // If invalid, silently ignore (as requested)
