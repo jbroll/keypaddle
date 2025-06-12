@@ -66,9 +66,6 @@ uint16_t saveChords(uint16_t startOffset, uint32_t modifierMask,
     uint16_t chordCountOffset = offset;
     offset = write32ToEEPROM(offset, 0);  // Placeholder for count
     
-    // Write each chord and count them
-    uint32_t chordCount = 0;
-    
     // We need to capture the count, so we'll use a lambda-like approach
     // Since we can't use actual lambdas, we'll use a global counter
     static uint32_t globalChordCount;

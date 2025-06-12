@@ -181,7 +181,7 @@ static uint8_t parseModifierMask(const char* modifierString) {
   char part[16];
   
   while (*pos) {
-    int partLen = 0;
+    size_t partLen = 0;
     // Read until + or end
     while (*pos && *pos != '+' && partLen < sizeof(part) - 1) {
       part[partLen++] = *pos;
