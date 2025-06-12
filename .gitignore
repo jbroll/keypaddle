@@ -1,5 +1,6 @@
 .*.swp
 error.log
+hardware
 
 # Prerequisites
 *.d
