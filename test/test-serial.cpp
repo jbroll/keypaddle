@@ -31,7 +31,7 @@ void setupTestEnvironment() {
     EEPROM.clear();
     
     // Clear all macros
-    for (int i = 0; i < MAX_SWITCHES; i++) {
+    for (int i = 0; i < NUM_SWITCHES; i++) {
         if (macros[i].downMacro) {
             free(macros[i].downMacro);
             macros[i].downMacro = nullptr;
@@ -47,7 +47,7 @@ void setupTestEnvironment() {
 }
 
 void setTestMacro(int keyIndex, const char* downMacro, const char* upMacro = nullptr) {
-    if (keyIndex < 0 || keyIndex >= MAX_SWITCHES) return;
+    if (keyIndex < 0 || keyIndex >= NUM_SWITCHES) return;
     
     // Clear existing macros
     if (macros[keyIndex].downMacro) {
@@ -242,7 +242,7 @@ void testLoadCommand(const TestCase& test) {
     saveToStorage();
     
     // Clear macros and load
-    for (int i = 0; i < MAX_SWITCHES; i++) {
+    for (int i = 0; i < NUM_SWITCHES; i++) {
         if (macros[i].downMacro) {
             free(macros[i].downMacro);
             macros[i].downMacro = nullptr;

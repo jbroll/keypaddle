@@ -4,3 +4,4 @@ test-micro-test
 test-parsing
 test-serial
 test-storage
+test-chord-storage

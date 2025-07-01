@@ -1,12 +1,13 @@
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall -Wno-unused-variable -Wno-sign-compare -I. -I..
 
-test: clean test-macros test-execution test-storage test-serial test-parsing
+test: clean test-macros test-execution test-storage test-serial test-parsing test-chord-storage
 	./test-macros
 	./test-execution
 	./test-storage
 	./test-serial
 	./test-parsing
+	./test-chord-storage
 
 test-macros: test-macros.cpp Arduino.cpp ../map-parser-tables.cpp ../macro-encode.cpp ../macro-decode.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
@@ -32,6 +33,12 @@ test-parsing: test-parsing.cpp \
 				../macro-encode.cpp ../macro-decode.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
+test-chord-storage: test-chord-storage.cpp \
+				Arduino.cpp EEPROM.cpp \
+				../storage.cpp ../chordStorage.cpp \
+				../map-parser-tables.cpp ../macro-encode.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $^
+
 test-micro-test: test-micro-test.cpp Arduino.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
@@ -39,6 +46,6 @@ test-framework: test-micro-test
 	./test-micro-test
 
 clean:
-	rm -f test-macros test-execution test-storage test-serial test-parsing test-micro-test
+	rm -f test-macros test-execution test-storage test-serial test-parsing test-chord-storage test-micro-test
 
 .PHONY: test test-framework clean
