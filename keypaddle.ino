@@ -114,6 +114,10 @@ void loop() {
   
   // Process switch state changes
   if (currentSwitchState != lastSwitchState) {
+    Serial.print("Switches 0x");
+    Serial.print(currentSwitchState, HEX);
+    Serial.println();
+
     if (systemReady) {
       // Process chording first - gets priority over individual keys
       bool chordHandled = processChording(currentSwitchState);
