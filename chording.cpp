@@ -36,6 +36,7 @@ ChordingEngine::ChordingEngine() {
   
   // Initialize runtime state
   currentChord = 0;
+  capturedChord = 0;
   lastSwitchState = 0;
   chordStartTime = 0;
   state = CHORD_IDLE;
@@ -56,6 +57,7 @@ bool ChordingEngine::processChording(uint32_t currentSwitchState) {
       if (pressed) {
         // Start building a chord
         currentChord = currentSwitchState;
+        capturedChord = currentSwitchState;  // Initialize captured pattern
         chordStartTime = now;
         state = CHORD_BUILDING;
         chordExecuted = false;
@@ -64,15 +66,18 @@ bool ChordingEngine::processChording(uint32_t currentSwitchState) {
       
     case CHORD_BUILDING:
       if (pressed) {
-        // More keys pressed - update chord
+        // More keys pressed - update both current and captured chord
         currentChord = currentSwitchState;
+        capturedChord |= currentSwitchState;  // Accumulate maximum pattern
         chordStartTime = now;  // Reset timeout
       }
       else if (released) {
-        // Keys released while building - check if we should trigger
+        // Keys released - update current but preserve captured
+        currentChord = currentSwitchState;
+        
         if (shouldTriggerChord(currentSwitchState, lastSwitchState)) {
-          // Non-modifier keys released - try to match and execute chord
-          ChordPattern* pattern = findChordPattern(currentChord);
+          // All non-modifier keys released - try to match captured pattern
+          ChordPattern* pattern = findChordPattern(capturedChord);
           if (pattern) {
             executeChord(pattern);
             state = CHORD_MATCHED;
@@ -84,23 +89,25 @@ bool ChordingEngine::processChording(uint32_t currentSwitchState) {
             lastSwitchState = currentSwitchState;
             return false;  // Let individual keys be processed
           }
-        } else {
-          // Only modifier keys or some non-modifiers still pressed - continue building
-          currentChord = currentSwitchState;
         }
+        // If not all non-modifier keys released, continue building
       }
       else if (now - chordStartTime > CHORD_TIMEOUT_MS) {
-        // Timeout - no more keys expected, try to match current combination
-        if (currentSwitchState > 0) {
-          ChordPattern* pattern = findChordPattern(currentChord);
+        // Timeout - check if we have a valid chord pattern
+        if (capturedChord > 0) {
+          ChordPattern* pattern = findChordPattern(capturedChord);
           if (pattern) {
-            // Found a partial match - wait for non-modifier release to execute
-            // Keep building until non-modifier keys released
+            // Found a valid pattern - wait for complete release to execute
+            // Keep building until all non-modifier keys released
           } else {
             // No match possible - pass through
             state = CHORD_PASSTHROUGH;
             return false;
           }
+        } else {
+          // No chord captured - pass through
+          state = CHORD_PASSTHROUGH;
+          return false;
         }
       }
       break;
@@ -148,6 +155,7 @@ void ChordingEngine::executeChord(ChordPattern* pattern) {
 
 void ChordingEngine::resetChordState() {
   currentChord = 0;
+  capturedChord = 0;
   chordStartTime = 0;
   state = CHORD_IDLE;
   chordExecuted = false;
@@ -362,12 +370,12 @@ uint32_t ChordingEngine::getNonModifierKeys(uint32_t keyMask) {
 }
 
 bool ChordingEngine::shouldTriggerChord(uint32_t currentKeys, uint32_t previousKeys) {
-  // Trigger when any non-modifier key is released
+  // Trigger when all non-modifier keys are released
   uint32_t prevNonMod = getNonModifierKeys(previousKeys);
   uint32_t currNonMod = getNonModifierKeys(currentKeys);
   
-  // If any non-modifier key was released, trigger chord evaluation
-  return (prevNonMod & ~currNonMod) != 0;
+  // Fire chord when all non-modifier keys are released
+  return (prevNonMod != 0) && (currNonMod == 0);
 }
 
 //==============================================================================

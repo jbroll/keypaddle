@@ -52,6 +52,7 @@ private:
   
   // Current chord state (runtime only)
   uint32_t currentChord;         // Current combination of pressed keys
+  uint32_t capturedChord;        // Maximum chord pattern captured during building
   uint32_t lastSwitchState;      // Previous switch state for change detection
   uint32_t chordStartTime;       // When current chord building started
   ChordingState state;
@@ -96,6 +97,7 @@ public:
   // State queries
   ChordingState getCurrentState() const { return state; }
   uint32_t getCurrentChord() const { return currentChord; }
+  uint32_t getCapturedChord() const { return capturedChord; }
   bool isChordInProgress() const { return state == CHORD_BUILDING; }
   
   // Iteration support for commands

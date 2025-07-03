@@ -1,13 +1,14 @@
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall -Wno-unused-variable -Wno-sign-compare -I. -I..
 
-test: clean test-macros test-execution test-storage test-serial test-parsing test-chord-storage
+test: clean test-macros test-execution test-storage test-serial test-parsing test-chord-storage test-chord-timing
 	./test-macros
 	./test-execution
 	./test-storage
 	./test-serial
 	./test-parsing
 	./test-chord-storage
+	./test-chord-timing
 
 test-macros: test-macros.cpp Arduino.cpp ../map-parser-tables.cpp ../macro-encode.cpp ../macro-decode.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
@@ -37,6 +38,13 @@ test-chord-storage: test-chord-storage.cpp \
 				Arduino.cpp EEPROM.cpp \
 				../storage.cpp ../chordStorage.cpp \
 				../map-parser-tables.cpp ../macro-encode.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $^
+
+test-chord-timing: test-chord-timing.cpp \
+				Arduino.cpp EEPROM.cpp \
+				../storage.cpp ../chordStorage.cpp \
+				../chording.cpp \
+				../map-parser-tables.cpp ../macro-encode.cpp ../macro-engine.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 test-micro-test: test-micro-test.cpp Arduino.cpp
