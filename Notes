@@ -7,3 +7,16 @@ arduino-cli config init
 arduino-cli config add board_manager.additional_urls https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
 arduino-cli core install rp2040:rp2040
 
+
+
+# Teensy
+arduino-cli core update-index
+arduino-cli core install teensy:avr
+
+
+# Download the rules file
+sudo wget https://www.pjrc.com/teensy/00-teensy.rules -O /etc/udev/rules.d/00-teensy.rules
+
+# Reload udev rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger

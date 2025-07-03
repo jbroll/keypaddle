@@ -1,3 +1,4 @@
 FQBN=teensy:avr:teensy2:usb=serialhid
-PROG=usb2/2-2
-PORT=/dev/ttyACM1
+# PROG=usb2/2-2
+PROG=usb3/3-1
+PORT=/dev/ttyACM0
