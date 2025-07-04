@@ -29,7 +29,10 @@ void cmdHelp() {
   Serial.println(F("\n=== System ==="));
   Serial.println(F("STAT - show status"));
   
-  Serial.println(F("\nKeys: 0-23, direction: down(default) or up"));
+  // FIXED: Use NUM_SWITCHES to show correct key range
+  Serial.print(F("\nKeys: 0-"));
+  Serial.print(NUM_SWITCHES - 1);
+  Serial.println(F(", direction: down(default) or up"));
   Serial.println(F("Chord keys: 0,1,5 or 0+1+5 format"));
   Serial.println(F("Modifier keys don't need release to trigger chords"));
 }

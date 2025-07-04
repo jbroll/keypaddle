@@ -7,6 +7,8 @@
 #ifndef CMD_PARSING_H
 #define CMD_PARSING_H
 
+#include "../config.h"  // ADDED: Include config for NUM_SWITCHES
+
 #define DIRECTION_UNK -1
 #define DIRECTION_DOWN 0
 #define DIRECTION_UP   1
@@ -24,7 +26,7 @@ typedef void (*SwitchDirectionCommandFunc)(int switchNum, int direction, const c
 
 // Parse switch number and optional direction from command arguments
 // Returns true on success, false on error (with error message sent to Serial)
-// On success: switchNum contains the parsed switch number (0-23)
+// On success: switchNum contains the parsed switch number (0-NUM_SWITCHES-1)
 //            direction contains DIRECTION_DOWN or DIRECTION_UP
 //            remainingArgs points to any remaining arguments after direction
 bool parseSwitchAndDirection(const char* args, int* switchNum, int* direction, const char** remainingArgs);

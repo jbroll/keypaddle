@@ -1,5 +1,5 @@
 /*
- * Serial Interface Testing - FIXED key indices
+ * Serial Interface Testing - Rewritten with ASSERT_STR_CONTAINS
  * Tests command parsing, execution, and response formatting
  */
 
@@ -90,9 +90,9 @@ void testCommandParsing(const TestCase& test) {
     std::string output = Serial.getFullOutput();
     
     if (test.expected == "UNKNOWN") {
-        ASSERT_TRUE(Serial.containsOutput("Unknown command"), "Should show unknown command message");
+        ASSERT_STR_CONTAINS(output, "Unknown command", "Should show unknown command message");
     } else {
-        ASSERT_TRUE(!Serial.containsOutput("Unknown command"), "Should not show unknown command message");
+        ASSERT_STR_NOT_CONTAINS(output, "Unknown command", "Should not show unknown command message");
     }
 }
 
@@ -106,19 +106,21 @@ void testHelpCommand(const TestCase& test) {
     
     processCommand("HELP");
     
-    // Verify help output contains expected sections
-    ASSERT_TRUE(Serial.containsOutput("Commands:"), "Help should show Commands section");
-    ASSERT_TRUE(Serial.containsOutput("HELP"), "Help should list HELP command");
-    ASSERT_TRUE(Serial.containsOutput("SHOW"), "Help should list SHOW command");
-    ASSERT_TRUE(Serial.containsOutput("MAP"), "Help should list MAP command");
-    ASSERT_TRUE(Serial.containsOutput("CLEAR"), "Help should list CLEAR command");
-    ASSERT_TRUE(Serial.containsOutput("LOAD"), "Help should list LOAD command");
-    ASSERT_TRUE(Serial.containsOutput("SAVE"), "Help should list SAVE command");
-    ASSERT_TRUE(Serial.containsOutput("STAT"), "Help should list STAT command");
-    
-    // FIXED: Check for correct key range based on NUM_SWITCHES
+    std::string output = Serial.getFullOutput();
     std::string expectedRange = "Keys: 0-" + std::to_string(NUM_SWITCHES - 1);
-    ASSERT_TRUE(Serial.containsOutput(expectedRange), "Help should show correct key range");
+    
+    // Verify help output contains expected sections
+    ASSERT_STR_CONTAINS(output, "Commands:", "Help should show Commands section");
+    ASSERT_STR_CONTAINS(output, "HELP", "Help should list HELP command");
+    ASSERT_STR_CONTAINS(output, "SHOW", "Help should list SHOW command");
+    ASSERT_STR_CONTAINS(output, "MAP", "Help should list MAP command");
+    ASSERT_STR_CONTAINS(output, "CLEAR", "Help should list CLEAR command");
+    ASSERT_STR_CONTAINS(output, "LOAD", "Help should list LOAD command");
+    ASSERT_STR_CONTAINS(output, "SAVE", "Help should list SAVE command");
+    ASSERT_STR_CONTAINS(output, "STAT", "Help should list STAT command");
+    
+    // ENHANCED: This will now show exactly what's wrong with the key range
+    ASSERT_STR_CONTAINS(output, expectedRange, "Help should show correct key range");
 }
 
 //==============================================================================
@@ -128,7 +130,7 @@ void testHelpCommand(const TestCase& test) {
 void testShowCommand(const TestCase& test) {
     setupTestEnvironment();
     
-    // Set up some test macros - FIXED: use valid indices
+    // Set up some test macros - use valid indices
     setTestMacro(0, "hello");
     setTestMacro(1, "world", "up-world");
     setTestMacro(5, nullptr, "just-up");
@@ -139,38 +141,38 @@ void testShowCommand(const TestCase& test) {
     std::string output = Serial.getFullOutput();
     
     if (test.input.find("SHOW 0") != std::string::npos) {
-        ASSERT_TRUE(Serial.containsOutput("Key 0"), "Should show Key 0");
-        ASSERT_TRUE(Serial.containsOutput("DOWN"), "Should show DOWN direction");
-        ASSERT_TRUE(Serial.containsOutput("hello"), "Should show macro content");
+        ASSERT_STR_CONTAINS(output, "Key 0", "Should show Key 0");
+        ASSERT_STR_CONTAINS(output, "DOWN", "Should show DOWN direction");
+        ASSERT_STR_CONTAINS(output, "hello", "Should show macro content");
     }
     else if (test.input.find("SHOW 1 UP") != std::string::npos) {
-        ASSERT_TRUE(Serial.containsOutput("Key 1"), "Should show Key 1");
-        ASSERT_TRUE(Serial.containsOutput("UP"), "Should show UP direction");
-        ASSERT_TRUE(Serial.containsOutput("up-world"), "Should show up macro content");
+        ASSERT_STR_CONTAINS(output, "Key 1", "Should show Key 1");
+        ASSERT_STR_CONTAINS(output, "UP", "Should show UP direction");
+        ASSERT_STR_CONTAINS(output, "up-world", "Should show up macro content");
     }
     else if (test.input.find("SHOW 5 UP") != std::string::npos) {
-        ASSERT_TRUE(Serial.containsOutput("Key 5"), "Should show Key 5");
-        ASSERT_TRUE(Serial.containsOutput("UP"), "Should show UP direction");
-        ASSERT_TRUE(Serial.containsOutput("just-up"), "Should show up-only macro");
+        ASSERT_STR_CONTAINS(output, "Key 5", "Should show Key 5");
+        ASSERT_STR_CONTAINS(output, "UP", "Should show UP direction");
+        ASSERT_STR_CONTAINS(output, "just-up", "Should show up-only macro");
     }
     else if (test.input.find("SHOW 2") != std::string::npos) {
-        ASSERT_TRUE(Serial.containsOutput("Key 2"), "Should show Key 2");
-        ASSERT_TRUE(Serial.containsOutput("(empty)"), "Should show empty for unset macro");
+        ASSERT_STR_CONTAINS(output, "Key 2", "Should show Key 2");
+        ASSERT_STR_CONTAINS(output, "(empty)", "Should show empty for unset macro");
     }
     else if (test.input.find("SHOW ALL") != std::string::npos) {
-        ASSERT_TRUE(Serial.containsOutput("0 DOWN:"), "Should show all keys");
-        ASSERT_TRUE(Serial.containsOutput("0 UP:"), "Should show all directions");
+        ASSERT_STR_CONTAINS(output, "0 DOWN:", "Should show all keys");
+        ASSERT_STR_CONTAINS(output, "0 UP:", "Should show all directions");
         
-        // FIXED: Check for last valid key instead of 23
+        // Check for last valid key instead of hardcoded 23
         std::string lastKeyDown = std::to_string(NUM_SWITCHES - 1) + " DOWN:";
         std::string lastKeyUp = std::to_string(NUM_SWITCHES - 1) + " UP:";
-        ASSERT_TRUE(Serial.containsOutput(lastKeyDown), "Should show last key down");
-        ASSERT_TRUE(Serial.containsOutput(lastKeyUp), "Should show last key up");
+        ASSERT_STR_CONTAINS(output, lastKeyDown, "Should show last key down");
+        ASSERT_STR_CONTAINS(output, lastKeyUp, "Should show last key up");
     }
     else if (test.input.find("SHOW 99") != std::string::npos) {
-        // FIXED: Update error message to reflect actual valid range
+        // ENHANCED: This will now show exactly what error message is produced vs expected
         std::string expectedError = "Invalid key 0-" + std::to_string(NUM_SWITCHES - 1);
-        ASSERT_TRUE(Serial.containsOutput(expectedError), "Should show error for invalid key");
+        ASSERT_STR_CONTAINS(output, expectedError, "Should show error for invalid key");
     }
 }
 
@@ -184,8 +186,10 @@ void testMapCommand(const TestCase& test) {
     
     processCommand(test.input.c_str());
     
+    std::string output = Serial.getFullOutput();
+    
     if (test.expected == "OK") {
-        ASSERT_TRUE(Serial.containsOutput("OK"), "MAP command should succeed with OK");
+        ASSERT_STR_CONTAINS(output, "OK", "MAP command should succeed with OK");
         
         // Verify the macro was actually set by checking with SHOW
         if (test.input.find("MAP 0") != std::string::npos) {
@@ -195,9 +199,16 @@ void testMapCommand(const TestCase& test) {
         }
     }
     else if (test.expected == "ERROR") {
-        ASSERT_TRUE(Serial.containsOutput("Invalid key") || 
-                   Serial.containsOutput("Parse error") ||
-                   Serial.containsOutput("error"), "Should show error message");
+        // More specific error checking
+        bool hasError = output.find("Invalid key") != std::string::npos || 
+                       output.find("Parse error") != std::string::npos ||
+                       output.find("error") != std::string::npos;
+        ASSERT_TRUE(hasError, "Should show some kind of error message");
+        
+        // DEBUG: Show what error we actually got
+        if (!hasError) {
+            std::cout << "Expected error but got: '" << output << "'" << std::endl;
+        }
     }
 }
 
@@ -214,16 +225,20 @@ void testClearCommand(const TestCase& test) {
     Serial.clear();
     processCommand(test.input.c_str());
     
+    std::string output = Serial.getFullOutput();
+    
     if (test.expected == "CLEARED") {
-        ASSERT_TRUE(Serial.containsOutput("Cleared"), "CLEAR should show Cleared message");
+        ASSERT_STR_CONTAINS(output, "Cleared", "CLEAR should show Cleared message");
         
         // Verify macro was actually cleared
         Serial.clear();
         processCommand("SHOW 0");
-        ASSERT_TRUE(Serial.containsOutput("(empty)"), "Macro should be empty after clear");
+        std::string showOutput = Serial.getFullOutput();
+        ASSERT_STR_CONTAINS(showOutput, "(empty)", "Macro should be empty after clear");
     }
     else if (test.expected == "ERROR") {
-        ASSERT_TRUE(Serial.containsOutput("Invalid key"), "Should show invalid key error");
+        std::string expectedError = "Invalid key 0-" + std::to_string(NUM_SWITCHES - 1);
+        ASSERT_STR_CONTAINS(output, expectedError, "Should show invalid key error");
     }
 }
 
@@ -240,7 +255,8 @@ void testSaveCommand(const TestCase& test) {
     Serial.clear();
     processCommand("SAVE");
     
-    ASSERT_TRUE(Serial.containsOutput("Saved"), "SAVE should show Saved message");
+    std::string output = Serial.getFullOutput();
+    ASSERT_STR_CONTAINS(output, "Saved", "SAVE should show Saved message");
 }
 
 void testLoadCommand(const TestCase& test) {
@@ -261,12 +277,14 @@ void testLoadCommand(const TestCase& test) {
     Serial.clear();
     processCommand("LOAD");
     
-    ASSERT_TRUE(Serial.containsOutput("Loaded"), "LOAD should show Loaded message");
+    std::string output = Serial.getFullOutput();
+    ASSERT_STR_CONTAINS(output, "Loaded", "LOAD should show Loaded message");
     
     // Verify data was actually loaded
     Serial.clear();
     processCommand("SHOW 0");
-    ASSERT_TRUE(Serial.containsOutput("load-test"), "Loaded macro should be visible");
+    std::string showOutput = Serial.getFullOutput();
+    ASSERT_STR_CONTAINS(showOutput, "load-test", "Loaded macro should be visible");
 }
 
 //==============================================================================
@@ -279,9 +297,10 @@ void testStatCommand(const TestCase& test) {
     
     processCommand("STAT");
     
-    ASSERT_TRUE(Serial.containsOutput("Switches:"), "STAT should show switches state");
-    ASSERT_TRUE(Serial.containsOutput("Free RAM:"), "STAT should show RAM info");
-    ASSERT_TRUE(Serial.containsOutput("0x"), "Should show hex switch state");
+    std::string output = Serial.getFullOutput();
+    ASSERT_STR_CONTAINS(output, "Switches:", "STAT should show switches state");
+    ASSERT_STR_CONTAINS(output, "Free RAM:", "STAT should show RAM info");
+    ASSERT_STR_CONTAINS(output, "0x", "Should show hex switch state");
 }
 
 //==============================================================================
@@ -297,15 +316,23 @@ void testErrorHandling(const TestCase& test) {
     std::string output = Serial.getFullOutput();
     
     if (test.expected == "UNKNOWN_COMMAND") {
-        ASSERT_TRUE(Serial.containsOutput("Unknown command"), "Should show unknown command error");
-        ASSERT_TRUE(Serial.containsOutput("type HELP"), "Should suggest HELP");
+        ASSERT_STR_CONTAINS(output, "Unknown command", "Should show unknown command error");
+        ASSERT_STR_CONTAINS(output, "type HELP", "Should suggest HELP");
     }
     else if (test.expected == "INVALID_KEY") {
-        ASSERT_TRUE(Serial.containsOutput("Invalid key"), "Should show invalid key error");
+        std::string expectedError = "Invalid key 0-" + std::to_string(NUM_SWITCHES - 1);
+        ASSERT_STR_CONTAINS(output, expectedError, "Should show invalid key error");
     }
     else if (test.expected == "PARSE_ERROR") {
-        ASSERT_TRUE(Serial.containsOutput("Parse error") || Serial.containsOutput("error"), 
-                   "Should show parse error");
+        // More flexible parse error checking
+        bool hasParseError = output.find("Parse error") != std::string::npos || 
+                           output.find("error") != std::string::npos;
+        ASSERT_TRUE(hasParseError, "Should show parse error");
+        
+        // DEBUG: Show what we actually got if no parse error
+        if (!hasParseError) {
+            std::cout << "Expected parse error but got: '" << output << "'" << std::endl;
+        }
     }
 }
 
@@ -321,41 +348,92 @@ void testCompleteWorkflow(const TestCase& test) {
     
     // Step 1: Set a macro
     processCommand("MAP 5 \"workflow test\"");
-    ASSERT_TRUE(Serial.containsOutput("OK"), "MAP should succeed");
+    std::string mapOutput = Serial.getFullOutput();
+    ASSERT_STR_CONTAINS(mapOutput, "OK", "MAP should succeed");
     
     // Step 2: Verify it's set
     Serial.clear();
     processCommand("SHOW 5");
-    ASSERT_TRUE(Serial.containsOutput("workflow test"), "SHOW should display set macro");
+    std::string showOutput1 = Serial.getFullOutput();
+    ASSERT_STR_CONTAINS(showOutput1, "workflow test", "SHOW should display set macro");
     
     // Step 3: Save to EEPROM
     Serial.clear();
     processCommand("SAVE");
-    ASSERT_TRUE(Serial.containsOutput("Saved"), "SAVE should succeed");
+    std::string saveOutput = Serial.getFullOutput();
+    ASSERT_STR_CONTAINS(saveOutput, "Saved", "SAVE should succeed");
     
     // Step 4: Clear the macro
     Serial.clear();
     processCommand("CLEAR 5");
-    ASSERT_TRUE(Serial.containsOutput("Cleared"), "CLEAR should succeed");
+    std::string clearOutput = Serial.getFullOutput();
+    ASSERT_STR_CONTAINS(clearOutput, "Cleared", "CLEAR should succeed");
     
     // Step 5: Verify it's cleared
     Serial.clear();
     processCommand("SHOW 5");
-    ASSERT_TRUE(Serial.containsOutput("(empty)"), "SHOW should show empty after clear");
+    std::string showOutput2 = Serial.getFullOutput();
+    ASSERT_STR_CONTAINS(showOutput2, "(empty)", "SHOW should show empty after clear");
     
     // Step 6: Load from EEPROM
     Serial.clear();
     processCommand("LOAD");
-    ASSERT_TRUE(Serial.containsOutput("Loaded"), "LOAD should succeed");
+    std::string loadOutput = Serial.getFullOutput();
+    ASSERT_STR_CONTAINS(loadOutput, "Loaded", "LOAD should succeed");
     
     // Step 7: Verify it's restored
     Serial.clear();
     processCommand("SHOW 5");
-    ASSERT_TRUE(Serial.containsOutput("workflow test"), "SHOW should display restored macro");
+    std::string showOutput3 = Serial.getFullOutput();
+    ASSERT_STR_CONTAINS(showOutput3, "workflow test", "SHOW should display restored macro");
 }
 
 //==============================================================================
-// TEST CASE DEFINITIONS - FIXED KEY INDICES
+// DEBUG HELPER FUNCTION
+//==============================================================================
+
+void debugCurrentImplementation() {
+    std::cout << "\n=== DEBUGGING CURRENT IMPLEMENTATION ===" << std::endl;
+    std::cout << "NUM_SWITCHES = " << NUM_SWITCHES << std::endl;
+    std::cout << "Expected key range: 0-" << (NUM_SWITCHES - 1) << std::endl;
+    
+    // Test HELP command output
+    setupTestEnvironment();
+    Serial.clear();
+    processCommand("HELP");
+    std::string helpOutput = Serial.getFullOutput();
+    
+    std::cout << "\nHELP command output:" << std::endl;
+    std::cout << "'" << helpOutput << "'" << std::endl;
+    
+    // Look for key range patterns
+    if (helpOutput.find("Keys: 0-23") != std::string::npos) {
+        std::cout << "❌ Found hardcoded 'Keys: 0-23'" << std::endl;
+    }
+    if (helpOutput.find("Keys: 0-" + std::to_string(NUM_SWITCHES - 1)) != std::string::npos) {
+        std::cout << "✅ Found correct key range" << std::endl;
+    }
+    
+    // Test invalid key error
+    Serial.clear();
+    processCommand("SHOW 99");
+    std::string errorOutput = Serial.getFullOutput();
+    
+    std::cout << "\nInvalid key error output:" << std::endl;
+    std::cout << "'" << errorOutput << "'" << std::endl;
+    
+    if (errorOutput.find("Invalid key 0-23") != std::string::npos) {
+        std::cout << "❌ Found hardcoded 'Invalid key 0-23'" << std::endl;
+    }
+    if (errorOutput.find("Invalid key 0-" + std::to_string(NUM_SWITCHES - 1)) != std::string::npos) {
+        std::cout << "✅ Found correct error message" << std::endl;
+    }
+    
+    std::cout << "========================================\n" << std::endl;
+}
+
+//==============================================================================
+// TEST CASE DEFINITIONS
 //==============================================================================
 
 std::vector<TestCase> createCommandParsingTests() {
@@ -379,7 +457,6 @@ std::vector<TestCase> createShowCommandTests() {
         TestCase("Show key 5 up only", "SHOW 5 UP", "SHOW_UP_ONLY"),
         TestCase("Show empty key", "SHOW 2", "SHOW_EMPTY"),
         TestCase("Show all keys", "SHOW ALL", "SHOW_ALL"),
-        // FIXED: Use an actually invalid key number
         TestCase("Show invalid key", "SHOW 99", "INVALID_KEY"),
     };
 }
@@ -403,13 +480,6 @@ std::vector<TestCase> createClearCommandTests() {
     };
 }
 
-std::vector<TestCase> createStorageCommandTests() {
-    return {
-        TestCase("Save command", "SAVE", "SAVED"),
-        TestCase("Load command", "LOAD", "LOADED"),
-    };
-}
-
 std::vector<TestCase> createErrorHandlingTests() {
     return {
         TestCase("Unknown command", "BADCOMMAND", "UNKNOWN_COMMAND"),
@@ -426,8 +496,15 @@ std::vector<TestCase> createErrorHandlingTests() {
 
 int main(int argc, char* argv[]) {
     bool verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
+    bool debug = (argc > 1 && strcmp(argv[1], "-d") == 0);
+    
+    if (debug) {
+        debugCurrentImplementation();
+        return 0;
+    }
     
     std::cout << "Running Serial Interface Tests (NUM_SWITCHES=" << NUM_SWITCHES << ")" << std::endl;
+    std::cout << "Enhanced with ASSERT_STR_CONTAINS for better debugging" << std::endl;
     std::cout << "=============================================================" << std::endl << std::endl;
     
     TestRunner runner(verbose);
@@ -482,5 +559,11 @@ int main(int argc, char* argv[]) {
     
     std::cout << std::endl;
     runner.printSummary();
+    
+    if (!runner.allPassed()) {
+        std::cout << std::endl << "💡 TIP: Run with -d flag to see debug output:" << std::endl;
+        std::cout << "./test-serial -d" << std::endl;
+    }
+    
     return runner.allPassed() ? 0 : 1;
 }

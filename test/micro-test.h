@@ -1,5 +1,5 @@
 /*
- * Micro Test Framework
+ * Micro Test Framework - Enhanced with String Contains Assertion
  * Minimal testing utilities for C++ without external dependencies
  */
 
@@ -198,6 +198,36 @@ public:
                 << "Assertion failed: " << (message) \
                 << " (got: '" << std::string(actual) \
                 << "', expected: '" << std::string(expected) << "')"; \
+            throw std::runtime_error(oss.str()); \
+        } \
+    } while(0)
+
+// NEW: String contains assertion with detailed output
+#define ASSERT_STR_CONTAINS(haystack, needle, message) \
+    do { \
+        std::string _haystack_str = std::string(haystack); \
+        std::string _needle_str = std::string(needle); \
+        if (_haystack_str.find(_needle_str) == std::string::npos) { \
+            std::ostringstream oss; \
+            oss << "at " << getFileName(__FILE__) << ":" << __LINE__ << ": " \
+                << "Assertion failed: " << (message) \
+                << " (looking for: '" << _needle_str \
+                << "', in: '" << _haystack_str << "')"; \
+            throw std::runtime_error(oss.str()); \
+        } \
+    } while(0)
+
+// NEW: String does NOT contain assertion  
+#define ASSERT_STR_NOT_CONTAINS(haystack, needle, message) \
+    do { \
+        std::string _haystack_str = std::string(haystack); \
+        std::string _needle_str = std::string(needle); \
+        if (_haystack_str.find(_needle_str) != std::string::npos) { \
+            std::ostringstream oss; \
+            oss << "at " << getFileName(__FILE__) << ":" << __LINE__ << ": " \
+                << "Assertion failed: " << (message) \
+                << " (should not contain: '" << _needle_str \
+                << "', but found in: '" << _haystack_str << "')"; \
             throw std::runtime_error(oss.str()); \
         } \
     } while(0)
