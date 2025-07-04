@@ -56,4 +56,4 @@ test-framework: test-micro-test
 clean:
 	rm -f test-macros test-execution test-storage test-serial test-parsing test-chord-storage test-micro-test
 
-.PHONY: test test-framework clean
+.PHONY: test test-storage test-framework clean

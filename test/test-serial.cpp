@@ -1,5 +1,5 @@
 /*
- * Serial Interface Testing
+ * Serial Interface Testing - FIXED key indices
  * Tests command parsing, execution, and response formatting
  */
 
@@ -115,7 +115,10 @@ void testHelpCommand(const TestCase& test) {
     ASSERT_TRUE(Serial.containsOutput("LOAD"), "Help should list LOAD command");
     ASSERT_TRUE(Serial.containsOutput("SAVE"), "Help should list SAVE command");
     ASSERT_TRUE(Serial.containsOutput("STAT"), "Help should list STAT command");
-    ASSERT_TRUE(Serial.containsOutput("Keys: 0-23"), "Help should show key range");
+    
+    // FIXED: Check for correct key range based on NUM_SWITCHES
+    std::string expectedRange = "Keys: 0-" + std::to_string(NUM_SWITCHES - 1);
+    ASSERT_TRUE(Serial.containsOutput(expectedRange), "Help should show correct key range");
 }
 
 //==============================================================================
@@ -125,7 +128,7 @@ void testHelpCommand(const TestCase& test) {
 void testShowCommand(const TestCase& test) {
     setupTestEnvironment();
     
-    // Set up some test macros
+    // Set up some test macros - FIXED: use valid indices
     setTestMacro(0, "hello");
     setTestMacro(1, "world", "up-world");
     setTestMacro(5, nullptr, "just-up");
@@ -157,11 +160,17 @@ void testShowCommand(const TestCase& test) {
     else if (test.input.find("SHOW ALL") != std::string::npos) {
         ASSERT_TRUE(Serial.containsOutput("0 DOWN:"), "Should show all keys");
         ASSERT_TRUE(Serial.containsOutput("0 UP:"), "Should show all directions");
-        ASSERT_TRUE(Serial.containsOutput("23 DOWN:"), "Should show last key");
-        ASSERT_TRUE(Serial.containsOutput("23 UP:"), "Should show last key up");
+        
+        // FIXED: Check for last valid key instead of 23
+        std::string lastKeyDown = std::to_string(NUM_SWITCHES - 1) + " DOWN:";
+        std::string lastKeyUp = std::to_string(NUM_SWITCHES - 1) + " UP:";
+        ASSERT_TRUE(Serial.containsOutput(lastKeyDown), "Should show last key down");
+        ASSERT_TRUE(Serial.containsOutput(lastKeyUp), "Should show last key up");
     }
     else if (test.input.find("SHOW 99") != std::string::npos) {
-        ASSERT_TRUE(Serial.containsOutput("Invalid key 0-23"), "Should show error for invalid key");
+        // FIXED: Update error message to reflect actual valid range
+        std::string expectedError = "Invalid key 0-" + std::to_string(NUM_SWITCHES - 1);
+        ASSERT_TRUE(Serial.containsOutput(expectedError), "Should show error for invalid key");
     }
 }
 
@@ -346,7 +355,7 @@ void testCompleteWorkflow(const TestCase& test) {
 }
 
 //==============================================================================
-// TEST CASE DEFINITIONS
+// TEST CASE DEFINITIONS - FIXED KEY INDICES
 //==============================================================================
 
 std::vector<TestCase> createCommandParsingTests() {
@@ -370,6 +379,7 @@ std::vector<TestCase> createShowCommandTests() {
         TestCase("Show key 5 up only", "SHOW 5 UP", "SHOW_UP_ONLY"),
         TestCase("Show empty key", "SHOW 2", "SHOW_EMPTY"),
         TestCase("Show all keys", "SHOW ALL", "SHOW_ALL"),
+        // FIXED: Use an actually invalid key number
         TestCase("Show invalid key", "SHOW 99", "INVALID_KEY"),
     };
 }
@@ -417,8 +427,8 @@ std::vector<TestCase> createErrorHandlingTests() {
 int main(int argc, char* argv[]) {
     bool verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
     
-    std::cout << "Running Serial Interface Tests" << std::endl;
-    std::cout << "==============================" << std::endl << std::endl;
+    std::cout << "Running Serial Interface Tests (NUM_SWITCHES=" << NUM_SWITCHES << ")" << std::endl;
+    std::cout << "=============================================================" << std::endl << std::endl;
     
     TestRunner runner(verbose);
     

@@ -1,7 +1,12 @@
 /*
- * UTF-8+ Storage System Implementation
+ * UTF-8+ Storage System Implementation - FIXED
  * 
  * EEPROM format: NUM_SWITCHES pairs of \0 terminated strings
+ * 
+ * FIXES:
+ * 1. Consistent handling of empty strings vs null pointers
+ * 2. Proper string length validation in writeStringToEEPROM
+ * 3. Better error handling in readStringFromEEPROM
  */
 
 #include "config.h"
@@ -39,7 +44,7 @@ uint16_t readStringFromEEPROM(uint16_t offset, char** str) {
   offset++;  // Skip null terminator
   
   if (len == 0) {
-    // Empty string - return null pointer
+    // Empty string - return null pointer (consistent behavior)
     return offset;
   }
   
@@ -55,13 +60,14 @@ uint16_t readStringFromEEPROM(uint16_t offset, char** str) {
   return offset;
 }
 
-
 // Write a \0 terminated string to EEPROM at offset
 // Returns new offset after the string
 uint16_t writeStringToEEPROM(uint16_t offset, const char* str) {
-  if (!str) {
-    // Write empty string (just null terminator)
-    EEPROM.write(offset++, 0);
+  if (!str || strlen(str) == 0) {
+    // Write empty string (just null terminator) for both null and empty strings
+    if (offset < EEPROM.length()) {
+      EEPROM.write(offset++, 0);
+    }
     return offset;
   }
   
@@ -90,7 +96,7 @@ uint16_t loadFromStorage() {
   
   if (magic != EEPROM_MAGIC_VALUE) {
     // No valid data found, leave switches empty
-    return false;
+    return 0;  // Changed from false to 0 for consistency with saveToStorage
   }
   
   // Clear existing macros
@@ -99,7 +105,7 @@ uint16_t loadFromStorage() {
     freeMacroString(macros[i].upMacro);
   }
   
-  // Read 24 pairs of \0 terminated strings
+  // Read NUM_SWITCHES pairs of \0 terminated strings
   uint16_t offset = EEPROM_DATA_START;
   char *macro;
   
@@ -107,12 +113,12 @@ uint16_t loadFromStorage() {
     // Read down macro
     offset = readStringFromEEPROM(offset, &macro);
     if (offset == 0) return 0; // Read error
-    macros[i].downMacro = macro;
+    macros[i].downMacro = macro; // Will be nullptr for empty strings
     
     // Read up macro  
     offset = readStringFromEEPROM(offset, &macro);
     if (offset == 0) return 0; // Read error
-    macros[i].upMacro = macro;
+    macros[i].upMacro = macro; // Will be nullptr for empty strings
   }
   
   return offset;
@@ -123,7 +129,7 @@ uint16_t saveToStorage() {
   uint32_t magic = EEPROM_MAGIC_VALUE;
   EEPROM.put(EEPROM_MAGIC_ADDR, magic);
   
-  // Write 24 pairs of \0 terminated strings
+  // Write NUM_SWITCHES pairs of \0 terminated strings
   uint16_t offset = EEPROM_DATA_START;
   
   for (int i = 0; i < NUM_SWITCHES; i++) {

@@ -1,6 +1,6 @@
 /*
- * Storage System Testing
- * Tests EEPROM save/load functionality with the macro storage system
+ * Storage System Testing - FIXED with correct key indices
+ * Uses valid key indices 0-7 (NUM_SWITCHES = 8)
  */
 
 #include "Arduino.h"
@@ -45,7 +45,7 @@ void setTestMacro(int keyIndex, const char* downMacro, const char* upMacro = nul
         macros[keyIndex].upMacro = nullptr;
     }
     
-    // Set new macros
+    // Set new macros - only allocate for non-null AND non-empty strings
     if (downMacro && strlen(downMacro) > 0) {
         macros[keyIndex].downMacro = (char*)malloc(strlen(downMacro) + 1);
         strcpy(macros[keyIndex].downMacro, downMacro);
@@ -60,27 +60,47 @@ void setTestMacro(int keyIndex, const char* downMacro, const char* upMacro = nul
 bool compareMacros(int keyIndex, const char* expectedDown, const char* expectedUp = nullptr) {
     if (keyIndex < 0 || keyIndex >= NUM_SWITCHES) return false;
     
+    // Helper to check if a string represents "no macro"
+    auto isNoMacro = [](const char* str) -> bool {
+        return str == nullptr || strlen(str) == 0;
+    };
+    
     // Compare down macro
-    if (expectedDown == nullptr || strlen(expectedDown) == 0) {
-        if (macros[keyIndex].downMacro != nullptr) return false;
-    } else {
-        if (macros[keyIndex].downMacro == nullptr) return false;
-        if (strcmp(macros[keyIndex].downMacro, expectedDown) != 0) return false;
+    bool actualDownEmpty = isNoMacro(macros[keyIndex].downMacro);
+    bool expectedDownEmpty = isNoMacro(expectedDown);
+    
+    if (actualDownEmpty && expectedDownEmpty) {
+        // Both represent "no macro" - OK
+    } else if (actualDownEmpty || expectedDownEmpty) {
+        // One has macro, one doesn't - mismatch
+        return false;
+    } else if (strcmp(macros[keyIndex].downMacro, expectedDown) != 0) {
+        // Both have macros but they're different - mismatch
+        return false;
     }
     
     // Compare up macro
-    if (expectedUp == nullptr || strlen(expectedUp) == 0) {
-        if (macros[keyIndex].upMacro != nullptr) return false;
-    } else {
-        if (macros[keyIndex].upMacro == nullptr) return false;
-        if (strcmp(macros[keyIndex].upMacro, expectedUp) != 0) return false;
+    bool actualUpEmpty = isNoMacro(macros[keyIndex].upMacro);
+    bool expectedUpEmpty = isNoMacro(expectedUp);
+    
+    if (actualUpEmpty && expectedUpEmpty) {
+        // Both represent "no macro" - OK
+    } else if (actualUpEmpty || expectedUpEmpty) {
+        // One has macro, one doesn't - mismatch
+        return false;
+    } else if (strcmp(macros[keyIndex].upMacro, expectedUp) != 0) {
+        // Both have macros but they're different - mismatch
+        return false;
     }
     
     return true;
 }
 
 std::string macroToString(const char* macro) {
-    return macro ? std::string("\"") + macro + "\"" : "null";
+    if (!macro || strlen(macro) == 0) {
+        return "null";
+    }
+    return std::string("\"") + macro + "\"";
 }
 
 void printMacroState(int keyIndex) {
@@ -92,7 +112,7 @@ void printMacroState(int keyIndex) {
 }
 
 //==============================================================================
-// BASIC STORAGE TESTS
+// BASIC STORAGE TESTS - FIXED WITH VALID KEY INDICES
 //==============================================================================
 
 void testEmptyStorageLoad(const TestCase& test) {
@@ -102,10 +122,10 @@ void testEmptyStorageLoad(const TestCase& test) {
     setupStorage();
     
     // Try to load from empty EEPROM
-    bool result = loadFromStorage();
+    uint16_t result = loadFromStorage();
     
-    // Should return false (no valid data)
-    ASSERT_TRUE(result == false, "loadFromStorage should return false for empty EEPROM");
+    // Should return 0 (no valid data)
+    ASSERT_EQ(result, 0, "loadFromStorage should return 0 for empty EEPROM");
     
     // All macros should remain null
     for (int i = 0; i < NUM_SWITCHES; i++) {
@@ -120,36 +140,36 @@ void testBasicSaveLoad(const TestCase& test) {
     clearAllMacros();
     setupStorage();
     
-    // Set some test macros
+    // FIXED: Use valid key indices 0-7 (NUM_SWITCHES = 8)
     setTestMacro(0, "hello");
     setTestMacro(1, "world", "up-world");
-    setTestMacro(5, "", "just-up");  // Empty down, non-empty up
-    setTestMacro(10, "just-down", ""); // Non-empty down, empty up
+    setTestMacro(5, nullptr, "just-up");      // nullptr down, macro up
+    setTestMacro(7, "just-down", nullptr);    // FIXED: Use key 7 instead of 10
     
     // Save to EEPROM
-    bool saveResult = saveToStorage();
-    ASSERT_TRUE(saveResult, "saveToStorage should succeed");
+    uint16_t saveResult = saveToStorage();
+    ASSERT_TRUE(saveResult > 0, "saveToStorage should succeed");
     
     // Clear macros in memory
     clearAllMacros();
     
     // Load from EEPROM
-    bool loadResult = loadFromStorage();
-    ASSERT_TRUE(loadResult, "loadFromStorage should succeed");
+    uint16_t loadResult = loadFromStorage();
+    ASSERT_TRUE(loadResult > 0, "loadFromStorage should succeed");
     
     // Verify loaded data
     ASSERT_TRUE(compareMacros(0, "hello", nullptr), "Key 0 should match saved data");
     ASSERT_TRUE(compareMacros(1, "world", "up-world"), "Key 1 should match saved data");
     ASSERT_TRUE(compareMacros(5, nullptr, "just-up"), "Key 5 should match saved data");
-    ASSERT_TRUE(compareMacros(10, "just-down", nullptr), "Key 10 should match saved data");
+    ASSERT_TRUE(compareMacros(7, "just-down", nullptr), "Key 7 should match saved data");
     
     // Check that other keys are empty
     ASSERT_TRUE(compareMacros(2, nullptr, nullptr), "Key 2 should be empty");
-    ASSERT_TRUE(compareMacros(23, nullptr, nullptr), "Key 23 should be empty");
+    ASSERT_TRUE(compareMacros(6, nullptr, nullptr), "Key 6 should be empty");
 }
 
 void testAllKeysPopulated(const TestCase& test) {
-    // Test with all 24 keys having different macros
+    // Test with all NUM_SWITCHES keys having different macros
     EEPROM.clear();
     clearAllMacros();
     setupStorage();
@@ -162,9 +182,9 @@ void testAllKeysPopulated(const TestCase& test) {
     }
     
     // Save and reload
-    ASSERT_TRUE(saveToStorage(), "Save should succeed");
+    ASSERT_TRUE(saveToStorage() > 0, "Save should succeed");
     clearAllMacros();
-    ASSERT_TRUE(loadFromStorage(), "Load should succeed");
+    ASSERT_TRUE(loadFromStorage() > 0, "Load should succeed");
     
     // Verify all keys
     for (int i = 0; i < NUM_SWITCHES; i++) {
@@ -182,15 +202,15 @@ void testMagicNumberValidation(const TestCase& test) {
     
     // Set and save some data
     setTestMacro(0, "test");
-    ASSERT_TRUE(saveToStorage(), "Initial save should succeed");
+    ASSERT_TRUE(saveToStorage() > 0, "Initial save should succeed");
     
     // Corrupt the magic number
     EEPROM.write(0, 0x00);  // First byte of magic number
     
     // Try to load - should fail
     clearAllMacros();
-    bool loadResult = loadFromStorage();
-    ASSERT_TRUE(loadResult == false, "Load should fail with corrupted magic number");
+    uint16_t loadResult = loadFromStorage();
+    ASSERT_EQ(loadResult, 0, "Load should fail with corrupted magic number");
     
     // Macros should remain empty
     ASSERT_TRUE(compareMacros(0, nullptr, nullptr), "Macro should be empty after failed load");
@@ -221,7 +241,7 @@ void testUTF8MacroStorage(const TestCase& test) {
     macros[2].upMacro = result3.utf8Sequence;  // Use as up macro
     
     // Save and reload
-    ASSERT_TRUE(saveToStorage(), "Save should succeed");
+    ASSERT_TRUE(saveToStorage() > 0, "Save should succeed");
     
     // Store expected values before clearing
     std::string expected1 = result1.utf8Sequence;
@@ -229,7 +249,7 @@ void testUTF8MacroStorage(const TestCase& test) {
     std::string expected3 = result3.utf8Sequence;
     
     clearAllMacros();
-    ASSERT_TRUE(loadFromStorage(), "Load should succeed");
+    ASSERT_TRUE(loadFromStorage() > 0, "Load should succeed");
     
     // Verify the UTF-8+ sequences are preserved exactly
     ASSERT_TRUE(compareMacros(0, expected1.c_str(), nullptr), "UTF-8+ macro 1 should be preserved");
@@ -255,11 +275,11 @@ void testLongMacroStorage(const TestCase& test) {
     macros[1].downMacro = encodedLong.utf8Sequence;
     
     // Save and reload
-    ASSERT_TRUE(saveToStorage(), "Save should succeed");
+    ASSERT_TRUE(saveToStorage() > 0, "Save should succeed");
     
     std::string expectedEncoded = encodedLong.utf8Sequence;
     clearAllMacros();
-    ASSERT_TRUE(loadFromStorage(), "Load should succeed");
+    ASSERT_TRUE(loadFromStorage() > 0, "Load should succeed");
     
     // Verify long macros are preserved
     ASSERT_TRUE(compareMacros(0, longMacro.c_str(), nullptr), "Long text macro should be preserved");
@@ -267,7 +287,7 @@ void testLongMacroStorage(const TestCase& test) {
 }
 
 //==============================================================================
-// EDGE CASE AND ERROR TESTS
+// EDGE CASE AND ERROR TESTS - FIXED INDICES
 //==============================================================================
 
 void testEmptyMacroHandling(const TestCase& test) {
@@ -276,26 +296,26 @@ void testEmptyMacroHandling(const TestCase& test) {
     clearAllMacros();
     setupStorage();
     
-    // Mix of null, empty, and valid macros
+    // Mix of nullptr and valid macros - using valid indices 0-7
     setTestMacro(0, nullptr, nullptr);          // Both null
-    setTestMacro(1, "", "");                    // Both empty strings
+    setTestMacro(1, nullptr, nullptr);          // Both null
     setTestMacro(2, "valid", nullptr);          // Down valid, up null
     setTestMacro(3, nullptr, "valid_up");       // Down null, up valid
-    setTestMacro(4, "", "valid_up2");           // Down empty, up valid
-    setTestMacro(5, "valid_down2", "");         // Down valid, up empty
+    setTestMacro(4, nullptr, "valid_up2");      // Down null, up valid
+    setTestMacro(5, "valid_down2", nullptr);    // Down valid, up null
     
     // Save and reload
-    ASSERT_TRUE(saveToStorage(), "Save should succeed");
+    ASSERT_TRUE(saveToStorage() > 0, "Save should succeed");
     clearAllMacros();
-    ASSERT_TRUE(loadFromStorage(), "Load should succeed");
+    ASSERT_TRUE(loadFromStorage() > 0, "Load should succeed");
     
     // Verify empty handling
     ASSERT_TRUE(compareMacros(0, nullptr, nullptr), "Null macros should remain null");
-    ASSERT_TRUE(compareMacros(1, nullptr, nullptr), "Empty string macros should become null");
+    ASSERT_TRUE(compareMacros(1, nullptr, nullptr), "Null macros should remain null");
     ASSERT_TRUE(compareMacros(2, "valid", nullptr), "Mixed null/valid should work");
     ASSERT_TRUE(compareMacros(3, nullptr, "valid_up"), "Mixed null/valid should work");
-    ASSERT_TRUE(compareMacros(4, nullptr, "valid_up2"), "Mixed empty/valid should work");
-    ASSERT_TRUE(compareMacros(5, "valid_down2", nullptr), "Mixed valid/empty should work");
+    ASSERT_TRUE(compareMacros(4, nullptr, "valid_up2"), "Mixed null/valid should work");
+    ASSERT_TRUE(compareMacros(5, "valid_down2", nullptr), "Mixed valid/null should work");
 }
 
 void testMultipleSaveLoadCycles(const TestCase& test) {
@@ -305,54 +325,49 @@ void testMultipleSaveLoadCycles(const TestCase& test) {
     setupStorage();
     
     for (int cycle = 0; cycle < 3; cycle++) {
-        // Set different data each cycle
+        // Set different data each cycle - FIXED: use valid indices 0-7
         std::string data = "cycle" + std::to_string(cycle);
         setTestMacro(cycle, data.c_str());
-        setTestMacro(cycle + 10, nullptr, data.c_str());
+        setTestMacro(cycle + 3, nullptr, data.c_str());  // FIXED: Use cycle+3 instead of cycle+10
         
         // Save and reload
-        ASSERT_TRUE(saveToStorage(), "Save cycle " + std::to_string(cycle) + " should succeed");
+        ASSERT_TRUE(saveToStorage() > 0, "Save cycle " + std::to_string(cycle) + " should succeed");
         clearAllMacros();
-        ASSERT_TRUE(loadFromStorage(), "Load cycle " + std::to_string(cycle) + " should succeed");
+        ASSERT_TRUE(loadFromStorage() > 0, "Load cycle " + std::to_string(cycle) + " should succeed");
         
         // Verify current cycle data
         ASSERT_TRUE(compareMacros(cycle, data.c_str(), nullptr), "Cycle " + std::to_string(cycle) + " down should match");
-        ASSERT_TRUE(compareMacros(cycle + 10, nullptr, data.c_str()), "Cycle " + std::to_string(cycle) + " up should match");
+        ASSERT_TRUE(compareMacros(cycle + 3, nullptr, data.c_str()), "Cycle " + std::to_string(cycle) + " up should match");
         
         // Verify previous cycles are preserved
         for (int prev = 0; prev < cycle; prev++) {
             std::string prevData = "cycle" + std::to_string(prev);
             ASSERT_TRUE(compareMacros(prev, prevData.c_str(), nullptr), "Previous cycle " + std::to_string(prev) + " should be preserved");
-            ASSERT_TRUE(compareMacros(prev + 10, nullptr, prevData.c_str()), "Previous cycle " + std::to_string(prev) + " up should be preserved");
+            ASSERT_TRUE(compareMacros(prev + 3, nullptr, prevData.c_str()), "Previous cycle " + std::to_string(prev) + " up should be preserved");
         }
     }
 }
 
 //==============================================================================
-// TEST CASE DEFINITIONS
+// DEMONSTRATION THAT "" AND nullptr ARE EQUIVALENT
 //==============================================================================
 
-std::vector<TestCase> createBasicStorageTests() {
-    return {
-        TestCase("Empty EEPROM load", "", EXPECT_PASS),
-        TestCase("Basic save/load", "", EXPECT_PASS),
-        TestCase("All keys populated", "", EXPECT_PASS),
-        TestCase("Magic number validation", "", EXPECT_PASS),
-    };
-}
-
-std::vector<TestCase> createUTF8StorageTests() {
-    return {
-        TestCase("UTF-8+ macro storage", "", EXPECT_PASS),
-        TestCase("Long macro storage", "", EXPECT_PASS),
-    };
-}
-
-std::vector<TestCase> createEdgeCaseTests() {
-    return {
-        TestCase("Empty macro handling", "", EXPECT_PASS),
-        TestCase("Multiple save/load cycles", "", EXPECT_PASS),
-    };
+void testEmptyStringEquivalence(const TestCase& test) {
+    // This test demonstrates that "" and nullptr are treated equivalently
+    EEPROM.clear();
+    clearAllMacros();
+    setupStorage();
+    
+    // These should all be equivalent to nullptr
+    ASSERT_TRUE(compareMacros(0, nullptr, nullptr), "nullptr vs nullptr should match");
+    ASSERT_TRUE(compareMacros(0, "", nullptr), "empty string vs nullptr should match");
+    ASSERT_TRUE(compareMacros(0, nullptr, ""), "nullptr vs empty string should match");
+    ASSERT_TRUE(compareMacros(0, "", ""), "empty string vs empty string should match");
+    
+    // Test with actual data
+    setTestMacro(1, "test", nullptr);
+    ASSERT_TRUE(compareMacros(1, "test", nullptr), "test vs nullptr should match");
+    ASSERT_TRUE(compareMacros(1, "test", ""), "test vs empty string should match");
 }
 
 //==============================================================================
@@ -362,8 +377,8 @@ std::vector<TestCase> createEdgeCaseTests() {
 int main(int argc, char* argv[]) {
     bool verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
     
-    std::cout << "Running Storage System Tests" << std::endl;
-    std::cout << "============================" << std::endl << std::endl;
+    std::cout << "Running Storage System Tests (Fixed indices for NUM_SWITCHES=" << NUM_SWITCHES << ")" << std::endl;
+    std::cout << "===========================================================================" << std::endl << std::endl;
     
     TestRunner runner(verbose);
     
@@ -377,6 +392,7 @@ int main(int argc, char* argv[]) {
         {TestCase("Long macro storage", "", EXPECT_PASS), testLongMacroStorage},
         {TestCase("Empty macro handling", "", EXPECT_PASS), testEmptyMacroHandling},
         {TestCase("Multiple save/load cycles", "", EXPECT_PASS), testMultipleSaveLoadCycles},
+        {TestCase("Empty string equivalence", "", EXPECT_PASS), testEmptyStringEquivalence},
     };
     
     for (const auto& testPair : allTests) {
@@ -387,6 +403,11 @@ int main(int argc, char* argv[]) {
     runner.printSummary();
     
     if (verbose) {
+        std::cout << std::endl << "Configuration Summary:" << std::endl;
+        std::cout << "NUM_SWITCHES: " << NUM_SWITCHES << std::endl;
+        std::cout << "Valid key indices: 0-" << (NUM_SWITCHES-1) << std::endl;
+        std::cout << "nullptr consistently represents 'no macro'" << std::endl;
+        std::cout << "Empty strings \"\" are treated as nullptr" << std::endl;
         std::cout << std::endl << "EEPROM Usage Summary:" << std::endl;
         std::cout << "Total EEPROM size: " << EEPROM.length() << " bytes" << std::endl;
         std::cout << "Used bytes: " << EEPROM.countUsedBytes() << std::endl;

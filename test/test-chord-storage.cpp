@@ -49,8 +49,8 @@ class MockChordSystem {
 private:
     std::map<uint32_t, std::string> chordMap;
     uint32_t currentModifierMask;
-    bool addChordCallCount;
-    bool clearAllChordsCallCount;
+    int addChordCallCount;
+    int clearAllChordsCallCount;
     
 public:
     MockChordSystem() : currentModifierMask(0), addChordCallCount(0), clearAllChordsCallCount(0) {}
