@@ -174,7 +174,19 @@ public:
         if (!(condition)) { \
             std::ostringstream oss; \
             oss << "at " << getFileName(__FILE__) << ":" << __LINE__ << ": " \
-                << "Assertion failed: " << (message); \
+                << "Assertion failed: " << (message) \
+                << " (expected true but got false)"; \
+            throw std::runtime_error(oss.str()); \
+        } \
+    } while(0)
+
+#define ASSERT_FALSE(condition, message) \
+    do { \
+        if (condition) { \
+            std::ostringstream oss; \
+            oss << "at " << getFileName(__FILE__) << ":" << __LINE__ << ": " \
+                << "Assertion failed: " << (message) \
+                << " (expected false but got true)"; \
             throw std::runtime_error(oss.str()); \
         } \
     } while(0)
@@ -202,7 +214,6 @@ public:
         } \
     } while(0)
 
-// NEW: String contains assertion with detailed output
 #define ASSERT_STR_CONTAINS(haystack, needle, message) \
     do { \
         std::string _haystack_str = std::string(haystack); \
@@ -217,7 +228,6 @@ public:
         } \
     } while(0)
 
-// NEW: String does NOT contain assertion  
 #define ASSERT_STR_NOT_CONTAINS(haystack, needle, message) \
     do { \
         std::string _haystack_str = std::string(haystack); \

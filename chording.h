@@ -1,8 +1,11 @@
 /*
- * Chording Keyboard Interface
+ * Chording Keyboard Interface - Complete Implementation
  * 
- * Adds chord recognition and execution on top of existing switch system
- * Integrates with existing storage system for persistence
+ * Features:
+ * - State machine with execution windows and cancellation
+ * - Conflict prevention between chord and individual switches
+ * - Automatic chord pattern adjustment during release
+ * - Modifier key support
  */
 
 #ifndef CHORDING_H
@@ -12,30 +15,23 @@
 #include "config.h"
 
 //==============================================================================
-// CHORDING CONFIGURATION
-//==============================================================================
-
-#define CHORD_TIMEOUT_MS 50       // Time to wait for additional keys
-
-//==============================================================================
-// CHORD PATTERN STRUCTURE (Dynamic Storage)
+// CHORD PATTERN STRUCTURE
 //==============================================================================
 
 struct ChordPattern {
-  uint32_t keyMask;              // Bitmask of keys in this chord
-  char* macroSequence;           // UTF-8+ macro to execute (malloc'd)
-  ChordPattern* next;            // Linked list for dynamic storage
+    uint32_t keyMask;              // Bitmask of keys in this chord
+    char* macroSequence;           // UTF-8+ macro to execute (malloc'd)
+    ChordPattern* next;            // Linked list for dynamic storage
 };
 
 //==============================================================================
-// CHORDING STATE
+// CHORD STATE ENUMERATION
 //==============================================================================
 
-enum ChordingState {
-  CHORD_IDLE,                    // No keys pressed
-  CHORD_BUILDING,                // Keys pressed, waiting for more or timeout
-  CHORD_MATCHED,                 // Valid chord found and executed
-  CHORD_PASSTHROUGH              // No chord match, pass to individual key handling
+enum ChordState {
+    CHORD_IDLE,                    // No keys pressed, normal operation
+    CHORD_BUILDING,                // Chord keys pressed, building pattern
+    CHORD_CANCELLATION             // Non-chord key pressed, suppressing execution
 };
 
 //==============================================================================
@@ -44,64 +40,71 @@ enum ChordingState {
 
 class ChordingEngine {
 private:
-  // Dynamic chord storage (linked list)
-  ChordPattern* chordList;
-  
-  // Modifier key configuration (stored in EEPROM with other settings)
-  uint32_t modifierKeyMask;
-  
-  // Current chord state (runtime only)
-  uint32_t currentChord;         // Current combination of pressed keys
-  uint32_t capturedChord;        // Maximum chord pattern captured during building
-  uint32_t lastSwitchState;      // Previous switch state for change detection
-  uint32_t chordStartTime;       // When current chord building started
-  ChordingState state;
-  bool chordExecuted;            // Prevent double execution
-  
-  // Helper methods
-  ChordPattern* findChordPattern(uint32_t keyMask);
-  void executeChord(ChordPattern* pattern);
-  void resetChordState();
-  uint8_t countBits(uint32_t mask);
-  uint32_t getNonModifierKeys(uint32_t keyMask);
-  bool shouldTriggerChord(uint32_t currentKeys, uint32_t previousKeys);
-  void freeChordPattern(ChordPattern* pattern);
-  
+    // Chord storage
+    ChordPattern* chordList;
+    uint32_t modifierKeyMask;       // Which keys are modifiers
+    uint32_t chordSwitchesMask;     // Bitmask of all switches used in any chord
+    
+    // State machine
+    ChordState state;
+    uint32_t capturedChord;         // Accumulated chord pattern
+    uint32_t pressedKeys;           // Currently pressed switches
+    uint32_t lastSwitchState;       // For change detection
+    
+    // Timing state
+    uint32_t executionWindowMs;     // Execution window duration (default 50ms)
+    uint32_t executionWindowStart; // Window start time
+    bool executionWindowActive;    // Window active flag
+    uint32_t cancellationStartTime; // Cancellation window start time
+    
+    // Helper methods
+    ChordPattern* findChordPattern(uint32_t keyMask) const;
+    void executeChord(ChordPattern* pattern);
+    void freeChordPattern(ChordPattern* pattern);
+    void updateChordSwitchesMask();
+    uint32_t getNonModifierKeys(uint32_t keyMask) const;
+    void handleExecutionWindow();
+    void handleCancellationTimeout();
+    void resetState();
+    
+
+    int lastState;
 public:
-  ChordingEngine();
-  ~ChordingEngine();
-  
-  // Main processing function - call from main loop
-  bool processChording(uint32_t currentSwitchState);
-  
-  // Chord management (dynamic allocation)
-  bool addChord(uint32_t keyMask, const char* macroSequence);
-  bool removeChord(uint32_t keyMask);
-  void clearAllChords();
-  
-  // Modifier key management
-  bool setModifierKey(uint8_t keyIndex, bool isModifier);
-  bool isModifierKey(uint8_t keyIndex);
-  void clearAllModifiers();
-  uint32_t getModifierMask() const { return modifierKeyMask; }
-  
-  // Storage integration
-  bool saveChords();             // Save chords to EEPROM
-  bool loadChords();             // Load chords from EEPROM
-  
-  // Query functions
-  int getChordCount();
-  bool isChordDefined(uint32_t keyMask);
-  const char* getChordMacro(uint32_t keyMask);
-  
-  // State queries
-  ChordingState getCurrentState() const { return state; }
-  uint32_t getCurrentChord() const { return currentChord; }
-  uint32_t getCapturedChord() const { return capturedChord; }
-  bool isChordInProgress() const { return state == CHORD_BUILDING; }
-  
-  // Iteration support for commands
-  void forEachChord(void (*callback)(uint32_t keyMask, const char* macro));
+    ChordingEngine();
+    ~ChordingEngine();
+    
+    // Main processing function - call from main loop
+    bool processChording(uint32_t currentSwitchState);
+    
+    // Chord management
+    bool addChord(uint32_t keyMask, const char* macroSequence);
+    bool removeChord(uint32_t keyMask);
+    void clearAllChords();
+    
+    // Modifier key management
+    bool setModifierKey(uint8_t keyIndex, bool isModifier);
+    bool isModifierKey(uint8_t keyIndex) const;
+    void clearAllModifiers();
+    uint32_t getModifierMask() const { return modifierKeyMask; }
+    
+    // Configuration
+    void setExecutionWindowMs(uint32_t windowMs) { executionWindowMs = windowMs; }
+    uint32_t getExecutionWindowMs() const { return executionWindowMs; }
+    
+    // Query functions
+    int getChordCount() const;
+    bool isChordDefined(uint32_t keyMask) const;
+    const char* getChordMacro(uint32_t keyMask) const;
+    bool isSwitchUsedInChords(uint8_t switchIndex) const;
+    uint32_t getChordSwitchesMask() const { return chordSwitchesMask; }
+    
+    // State queries
+    ChordState getCurrentState() const { return state; }
+    uint32_t getCurrentChord() const { return capturedChord; }
+    bool isExecutionWindowActive() const { return executionWindowActive; }
+    
+    // Iteration support for commands and storage
+    void forEachChord(void (*callback)(uint32_t keyMask, const char* macro)) const;
 };
 
 //==============================================================================
@@ -113,7 +116,7 @@ extern ChordingEngine chording;
 // Setup function
 void setupChording();
 
-// Main processing function - returns true if chord was handled
+// Main processing function - returns true if individual key processing should be suppressed
 bool processChording(uint32_t currentSwitchState);
 
 // Chord pattern parsing helpers

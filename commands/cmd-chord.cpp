@@ -178,14 +178,6 @@ void cmdChord(const char* args) {
     }
   }
   else if (strncasecmp(args, "STATUS", 6) == 0) {
-    Serial.print(F("Chording state: "));
-    switch (chording.getCurrentState()) {
-      case CHORD_IDLE:        Serial.println(F("IDLE")); break;
-      case CHORD_BUILDING:    Serial.println(F("BUILDING")); break;
-      case CHORD_MATCHED:     Serial.println(F("MATCHED")); break;
-      case CHORD_PASSTHROUGH: Serial.println(F("PASSTHROUGH")); break;
-      default:                Serial.println(F("UNKNOWN")); break;
-    }
     
     if (chording.getCurrentChord() != 0) {
       Serial.print(F("Current chord: "));

@@ -16,6 +16,8 @@
 #include <iomanip>
 
 #include "Serial.h"
+#include "EEPROM.h"
+#include "Keyboard.h"
 
 typedef const char* __FlashStringHelper;
 #define F(string_literal) (string_literal)

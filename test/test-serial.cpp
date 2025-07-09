@@ -4,8 +4,6 @@
  */
 
 #include "Arduino.h"
-#include "Keyboard.h"
-#include "Serial.h"
 #include "EEPROM.h"
 #include "micro-test.h"
 
@@ -18,8 +16,6 @@
 
 #include <iostream>
 #include <cstring>
-
-MockKeyboard Keyboard;
 
 //==============================================================================
 // TEST HELPER FUNCTIONS

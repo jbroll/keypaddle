@@ -1,14 +1,24 @@
 /*
- * Chording Keyboard Implementation with Storage Integration
+ * Chording Keyboard Implementation - FIXED State Machine
  * 
- * Uses dynamic allocation and integrates with existing EEPROM storage
+ * KEY FIXES:
+ * 1. CANCELLATION state persists until all keys released OR timeout
+ * 2. Pattern adjustment only happens in CHORD_BUILDING state
+ * 3. Execution window properly respects state
+ * 4. Better state transition logic
  */
 
 #include "chording.h"
 #include "macro-engine.h"
 #include "storage.h"
-#include <EEPROM.h>
 #include <string.h>
+
+//==============================================================================
+// CONSTANTS
+//==============================================================================
+
+static const uint32_t DEFAULT_EXECUTION_WINDOW_MS = 50;
+static const uint32_t CANCELLATION_TIMEOUT_MS = 2000;
 
 //==============================================================================
 // GLOBAL INSTANCE
@@ -17,328 +27,278 @@
 ChordingEngine chording;
 
 //==============================================================================
-// EEPROM STORAGE LAYOUT EXTENSION
-//==============================================================================
-
-// Extend existing EEPROM layout after switch macros
-// Layout: [Magic][SwitchMacros][ChordMagic][ModifierMask][ChordCount][ChordData...]
-
-#define CHORD_MAGIC_VALUE 0xCCCC
-#define CHORD_EEPROM_START (EEPROM_DATA_START + (NUM_SWITCHES * 2 * 128))  // After switch macros (estimate)
-
-//==============================================================================
 // CHORDING ENGINE IMPLEMENTATION
 //==============================================================================
 
 ChordingEngine::ChordingEngine() {
-  chordList = nullptr;
-  modifierKeyMask = 0;
-  
-  // Initialize runtime state
-  currentChord = 0;
-  capturedChord = 0;
-  lastSwitchState = 0;
-  chordStartTime = 0;
-  state = CHORD_IDLE;
-  chordExecuted = false;
+    chordList = nullptr;
+    modifierKeyMask = 0;
+    chordSwitchesMask = 0;
+    state = CHORD_IDLE;
+    capturedChord = 0;
+    pressedKeys = 0;
+    lastSwitchState = 0;
+    executionWindowMs = DEFAULT_EXECUTION_WINDOW_MS;
+    executionWindowStart = 0;
+    executionWindowActive = false;
+    cancellationStartTime = 0;
 }
 
 ChordingEngine::~ChordingEngine() {
-  clearAllChords();
+    clearAllChords();
 }
 
 bool ChordingEngine::processChording(uint32_t currentSwitchState) {
-  uint32_t now = millis();
-  uint32_t pressed = currentSwitchState & ~lastSwitchState;   // Newly pressed
-  uint32_t released = lastSwitchState & ~currentSwitchState;  // Newly released
-  
-  switch (state) {
-    case CHORD_IDLE:
-      if (pressed) {
-        // Start building a chord
-        currentChord = currentSwitchState;
-        capturedChord = currentSwitchState;  // Initialize captured pattern
-        chordStartTime = now;
-        state = CHORD_BUILDING;
-        chordExecuted = false;
-      }
-      break;
-      
-    case CHORD_BUILDING:
-      if (pressed) {
-        // More keys pressed - update both current and captured chord
-        currentChord = currentSwitchState;
-        capturedChord |= currentSwitchState;  // Accumulate maximum pattern
-        chordStartTime = now;  // Reset timeout
-      }
-      else if (released) {
-        // Keys released - update current but preserve captured
-        currentChord = currentSwitchState;
-        
-        if (shouldTriggerChord(currentSwitchState, lastSwitchState)) {
-          // All non-modifier keys released - try to match captured pattern
-          ChordPattern* pattern = findChordPattern(capturedChord);
-          if (pattern) {
-            executeChord(pattern);
-            state = CHORD_MATCHED;
-            lastSwitchState = currentSwitchState;
-            return true;  // Chord handled - don't process individual keys
-          } else {
-            // No chord match - pass through to individual key processing
-            state = CHORD_PASSTHROUGH;
-            lastSwitchState = currentSwitchState;
-            return false;  // Let individual keys be processed
-          }
+    uint32_t now = millis();
+    
+    // Update pressed keys state
+    pressedKeys = currentSwitchState;
+    
+    // Calculate ALL key changes first
+    uint32_t allPressed = currentSwitchState & ~lastSwitchState;
+    uint32_t allReleased = lastSwitchState & ~currentSwitchState;
+    
+    // Separate into chord and non-chord keys
+    uint32_t chordSwitches = currentSwitchState & chordSwitchesMask;
+    uint32_t chordPressed = allPressed & chordSwitchesMask;
+    uint32_t chordReleased = allReleased & chordSwitchesMask;
+    
+    uint32_t nonChordPressed = allPressed & ~chordSwitchesMask;
+    
+    // Handle state machine
+    switch (state) {
+        case CHORD_IDLE:
+            if (chordPressed) {
+                // Chord key pressed - start building
+                state = CHORD_BUILDING;
+                capturedChord = chordSwitches;
+                executionWindowActive = false;
+            }
+            break;
+            
+        case CHORD_BUILDING:
+            if (chordPressed) {
+                // More chord keys pressed - expand pattern
+                capturedChord |= chordSwitches;
+            }
+            
+            // Check for cancellation: non-chord, non-modifier key pressed
+            if (nonChordPressed) {
+                uint32_t nonModifierNonChord = nonChordPressed & ~modifierKeyMask;
+                if (nonModifierNonChord) {
+                    state = CHORD_CANCELLATION;
+                    cancellationStartTime = now;
+                    executionWindowActive = false;
+                }
+            }
+            
+            if (chordReleased) {
+                // Start execution window on first chord key release
+                if (!executionWindowActive) {
+                    executionWindowStart = now;
+                    executionWindowActive = true;
+                }
+            }
+            break;
+            
+        case CHORD_CANCELLATION:
+            // CRITICAL FIX 1: Stay in cancellation until timeout OR all keys released
+            
+            // Reset cancellation timer on additional non-chord key presses
+            if (nonChordPressed) {
+                uint32_t nonModifierNonChord = nonChordPressed & ~modifierKeyMask;
+                if (nonModifierNonChord) {
+                    cancellationStartTime = now;
+                }
+            }
+            
+            if (chordReleased) {
+                // Start execution window on chord key release (but won't execute in cancellation)
+                if (!executionWindowActive) {
+                    executionWindowStart = now;
+                    executionWindowActive = true;
+                }
+            }
+            
+            // Check for cancellation timeout
+            if (now - cancellationStartTime >= CANCELLATION_TIMEOUT_MS) {
+                if (chordSwitches != 0) {
+                    // Return to building with current chord keys
+                    state = CHORD_BUILDING;
+                    capturedChord = chordSwitches;
+                    executionWindowActive = false;
+                } else {
+                    // No chord keys left - return to idle
+                    resetState();
+                }
+            }
+            
+            // CRITICAL FIX 2: DON'T exit cancellation state here unless all keys released
+            // This was the main bug - cancellation was exiting too early
+            break;
+    }
+    
+    // Handle execution window timeout - but only in CHORD_BUILDING state
+    if (executionWindowActive && (now - executionWindowStart >= executionWindowMs)) {
+        handleExecutionWindow();
+    }
+    
+    // CRITICAL FIX 3: Handle complete key release properly
+    if (pressedKeys == 0) {
+        if (executionWindowActive && state == CHORD_BUILDING) {
+            // All keys released within execution window AND in building state - execute chord
+            ChordPattern* pattern = findChordPattern(capturedChord);
+            if (pattern) {
+                executeChord(pattern);
+            }
         }
-        // If not all non-modifier keys released, continue building
-      }
-      else if (now - chordStartTime > CHORD_TIMEOUT_MS) {
-        // Timeout - check if we have a valid chord pattern
-        if (capturedChord > 0) {
-          ChordPattern* pattern = findChordPattern(capturedChord);
-          if (pattern) {
-            // Found a valid pattern - wait for complete release to execute
-            // Keep building until all non-modifier keys released
-          } else {
-            // No match possible - pass through
-            state = CHORD_PASSTHROUGH;
-            return false;
-          }
-        } else {
-          // No chord captured - pass through
-          state = CHORD_PASSTHROUGH;
-          return false;
-        }
-      }
-      break;
-      
-    case CHORD_MATCHED:
-      if (getNonModifierKeys(currentSwitchState) == 0) {
-        // All non-modifier keys released after successful chord
-        resetChordState();
-      }
-      // Suppress individual key processing until non-modifier keys released
-      lastSwitchState = currentSwitchState;
-      return true;
-      
-    case CHORD_PASSTHROUGH:
-      if (getNonModifierKeys(currentSwitchState) == 0) {
-        // All non-modifier keys released - return to idle
-        resetChordState();
-      }
-      // Let individual keys be processed normally
-      break;
-  }
-  
-  lastSwitchState = currentSwitchState;
-  return false;  // Continue with individual key processing
+        // Always reset to IDLE when all keys are released, regardless of state
+        resetState();
+    }
+    
+    lastSwitchState = currentSwitchState;
+    
+    // Suppress individual key processing if not in idle state
+    return (state != CHORD_IDLE);
 }
 
-ChordPattern* ChordingEngine::findChordPattern(uint32_t keyMask) {
-  ChordPattern* current = chordList;
-  while (current) {
-    if (current->keyMask == keyMask) {
-      return current;
+void ChordingEngine::handleExecutionWindow() {
+    if (pressedKeys == 0) {
+        // All keys released - handled in main function
+        return;
     }
-    current = current->next;
-  }
-  return nullptr;
+    
+    // CRITICAL FIX 4: Only update pattern if we're in CHORD_BUILDING state
+    if (state == CHORD_BUILDING) {
+        // Some keys still held - update pattern to currently pressed chord keys
+        uint32_t currentChordKeys = pressedKeys & chordSwitchesMask;
+        if (currentChordKeys != 0) {
+            capturedChord = currentChordKeys;
+        } else {
+            // No chord keys left - should transition to idle
+            resetState();
+            return;
+        }
+    }
+    
+    executionWindowActive = false;
+}
+
+void ChordingEngine::resetState() {
+    state = CHORD_IDLE;
+    capturedChord = 0;
+    executionWindowActive = false;
+    cancellationStartTime = 0;
+}
+
+ChordPattern* ChordingEngine::findChordPattern(uint32_t keyMask) const {
+    ChordPattern* current = chordList;
+    while (current) {
+        if (current->keyMask == keyMask) {
+            return current;
+        }
+        current = current->next;
+    }
+    return nullptr;
 }
 
 void ChordingEngine::executeChord(ChordPattern* pattern) {
-  if (!pattern || !pattern->macroSequence) return;
-  
-  // Execute the chord's macro sequence
-  executeUTF8Macro((const uint8_t*)pattern->macroSequence, strlen(pattern->macroSequence));
-  chordExecuted = true;
-}
-
-void ChordingEngine::resetChordState() {
-  currentChord = 0;
-  capturedChord = 0;
-  chordStartTime = 0;
-  state = CHORD_IDLE;
-  chordExecuted = false;
+    if (!pattern || !pattern->macroSequence) return;
+    
+    // Execute the chord's macro sequence
+    executeUTF8Macro((const uint8_t*)pattern->macroSequence, strlen(pattern->macroSequence));
 }
 
 bool ChordingEngine::addChord(uint32_t keyMask, const char* macroSequence) {
-  if (!macroSequence || keyMask == 0) return false;
-  
-  // Check for valid chord (at least one non-modifier key)
-  if (getNonModifierKeys(keyMask) == 0) return false;
-  
-  // Find existing pattern or create new one
-  ChordPattern* pattern = findChordPattern(keyMask);
-  
-  if (pattern) {
-    // Update existing pattern
-    if (pattern->macroSequence) {
-      free(pattern->macroSequence);
-    }
-  } else {
-    // Create new pattern
-    pattern = (ChordPattern*)malloc(sizeof(ChordPattern));
-    if (!pattern) return false;
+    if (!macroSequence || keyMask == 0) return false;
     
-    pattern->keyMask = keyMask;
-    pattern->next = chordList;
-    chordList = pattern;
-  }
-  
-  // Set macro sequence
-  pattern->macroSequence = (char*)malloc(strlen(macroSequence) + 1);
-  if (!pattern->macroSequence) {
-    // If this was a new pattern, remove it from list
-    if (pattern->next == chordList) {
-      chordList = pattern->next;
-      free(pattern);
+    // Check for valid chord (at least one non-modifier key)
+    if (getNonModifierKeys(keyMask) == 0) return false;
+    
+    // Find existing pattern or create new one
+    ChordPattern* pattern = findChordPattern(keyMask);
+    
+    if (pattern) {
+        // Update existing pattern
+        if (pattern->macroSequence) {
+            free(pattern->macroSequence);
+        }
+    } else {
+        // Create new pattern
+        pattern = (ChordPattern*)malloc(sizeof(ChordPattern));
+        if (!pattern) return false;
+        
+        pattern->keyMask = keyMask;
+        pattern->next = chordList;
+        chordList = pattern;
     }
-    return false;
-  }
-  
-  strcpy(pattern->macroSequence, macroSequence);
-  return true;
+    
+    // Set macro sequence
+    pattern->macroSequence = (char*)malloc(strlen(macroSequence) + 1);
+    if (!pattern->macroSequence) {
+        // If this was a new pattern, remove it from list
+        if (pattern->next == chordList) {
+            chordList = pattern->next;
+            free(pattern);
+        }
+        return false;
+    }
+    
+    strcpy(pattern->macroSequence, macroSequence);
+    updateChordSwitchesMask();
+    return true;
 }
 
 bool ChordingEngine::removeChord(uint32_t keyMask) {
-  ChordPattern* current = chordList;
-  ChordPattern* previous = nullptr;
-  
-  while (current) {
-    if (current->keyMask == keyMask) {
-      // Remove from linked list
-      if (previous) {
-        previous->next = current->next;
-      } else {
-        chordList = current->next;
-      }
-      
-      // Free memory
-      freeChordPattern(current);
-      return true;
+    ChordPattern* current = chordList;
+    ChordPattern* previous = nullptr;
+    
+    while (current) {
+        if (current->keyMask == keyMask) {
+            // Remove from linked list
+            if (previous) {
+                previous->next = current->next;
+            } else {
+                chordList = current->next;
+            }
+            
+            // Free memory
+            freeChordPattern(current);
+            updateChordSwitchesMask();
+            return true;
+        }
+        previous = current;
+        current = current->next;
     }
-    previous = current;
-    current = current->next;
-  }
-  return false;
+    return false;
 }
 
 void ChordingEngine::clearAllChords() {
-  while (chordList) {
-    ChordPattern* next = chordList->next;
-    freeChordPattern(chordList);
-    chordList = next;
-  }
+    while (chordList) {
+        ChordPattern* next = chordList->next;
+        freeChordPattern(chordList);
+        chordList = next;
+    }
+    chordSwitchesMask = 0;
+    resetState();
 }
 
 void ChordingEngine::freeChordPattern(ChordPattern* pattern) {
-  if (pattern) {
-    if (pattern->macroSequence) {
-      free(pattern->macroSequence);
+    if (pattern) {
+        if (pattern->macroSequence) {
+            free(pattern->macroSequence);
+        }
+        free(pattern);
     }
-    free(pattern);
-  }
 }
 
-//==============================================================================
-// STORAGE INTEGRATION
-//==============================================================================
-
-bool ChordingEngine::saveChords() {
-  // Find end of switch macro data to place chord data
-  uint16_t offset = CHORD_EEPROM_START;
-  
-  // Write chord magic number
-  uint32_t magic = CHORD_MAGIC_VALUE;
-  EEPROM.put(offset, magic);
-  offset += sizeof(magic);
-  
-  // Write modifier mask
-  EEPROM.put(offset, modifierKeyMask);
-  offset += sizeof(modifierKeyMask);
-  
-  // Count chords
-  uint16_t chordCount = getChordCount();
-  EEPROM.put(offset, chordCount);
-  offset += sizeof(chordCount);
-  
-  // Write each chord
-  ChordPattern* current = chordList;
-  while (current && offset < EEPROM.length()) {
-    // Write key mask
-    EEPROM.put(offset, current->keyMask);
-    offset += sizeof(current->keyMask);
-    
-    // Write macro length
-    uint16_t macroLen = strlen(current->macroSequence);
-    EEPROM.put(offset, macroLen);
-    offset += sizeof(macroLen);
-    
-    // Write macro data
-    for (uint16_t i = 0; i <= macroLen && offset < EEPROM.length(); i++) {
-      EEPROM.write(offset++, current->macroSequence[i]);
+void ChordingEngine::updateChordSwitchesMask() {
+    chordSwitchesMask = 0;
+    ChordPattern* current = chordList;
+    while (current) {
+        chordSwitchesMask |= current->keyMask;
+        current = current->next;
     }
-    
-    current = current->next;
-  }
-  
-  return true;
-}
-
-bool ChordingEngine::loadChords() {
-  uint16_t offset = CHORD_EEPROM_START;
-  
-  // Check magic number
-  uint32_t magic;
-  EEPROM.get(offset, magic);
-  if (magic != CHORD_MAGIC_VALUE) {
-    return false;  // No chord data found
-  }
-  offset += sizeof(magic);
-  
-  // Clear existing chords
-  clearAllChords();
-  
-  // Load modifier mask
-  EEPROM.get(offset, modifierKeyMask);
-  offset += sizeof(modifierKeyMask);
-  
-  // Load chord count
-  uint16_t chordCount;
-  EEPROM.get(offset, chordCount);
-  offset += sizeof(chordCount);
-  
-  // Load each chord
-  for (uint16_t i = 0; i < chordCount && offset < EEPROM.length(); i++) {
-    // Read key mask
-    uint32_t keyMask;
-    EEPROM.get(offset, keyMask);
-    offset += sizeof(keyMask);
-    
-    // Read macro length
-    uint16_t macroLen;
-    EEPROM.get(offset, macroLen);
-    offset += sizeof(macroLen);
-    
-    // Validate length
-    if (macroLen > 512 || offset + macroLen >= EEPROM.length()) {
-      break;  // Invalid data
-    }
-    
-    // Read macro data
-    char* macroBuffer = (char*)malloc(macroLen + 1);
-    if (!macroBuffer) break;
-    
-    for (uint16_t j = 0; j <= macroLen; j++) {
-      macroBuffer[j] = EEPROM.read(offset++);
-    }
-    
-    // Add chord to list
-    addChord(keyMask, macroBuffer);
-    free(macroBuffer);
-  }
-  
-  return true;
 }
 
 //==============================================================================
@@ -346,76 +306,65 @@ bool ChordingEngine::loadChords() {
 //==============================================================================
 
 bool ChordingEngine::setModifierKey(uint8_t keyIndex, bool isModifier) {
-  if (keyIndex >= NUM_SWITCHES) return false;
-  
-  if (isModifier) {
-    modifierKeyMask |= (1UL << keyIndex);
-  } else {
-    modifierKeyMask &= ~(1UL << keyIndex);
-  }
-  return true;
+    if (keyIndex >= NUM_SWITCHES) return false;
+    
+    if (isModifier) {
+        modifierKeyMask |= (1UL << keyIndex);
+    } else {
+        modifierKeyMask &= ~(1UL << keyIndex);
+    }
+    return true;
 }
 
-bool ChordingEngine::isModifierKey(uint8_t keyIndex) {
-  if (keyIndex >= NUM_SWITCHES) return false;
-  return (modifierKeyMask & (1UL << keyIndex)) != 0;
+bool ChordingEngine::isModifierKey(uint8_t keyIndex) const {
+    if (keyIndex >= NUM_SWITCHES) return false;
+    return (modifierKeyMask & (1UL << keyIndex)) != 0;
 }
 
 void ChordingEngine::clearAllModifiers() {
-  modifierKeyMask = 0;
+    modifierKeyMask = 0;
 }
 
-uint32_t ChordingEngine::getNonModifierKeys(uint32_t keyMask) {
-  return keyMask & ~modifierKeyMask;
-}
-
-bool ChordingEngine::shouldTriggerChord(uint32_t currentKeys, uint32_t previousKeys) {
-  // Trigger when all non-modifier keys are released
-  uint32_t prevNonMod = getNonModifierKeys(previousKeys);
-  uint32_t currNonMod = getNonModifierKeys(currentKeys);
-  
-  // Fire chord when all non-modifier keys are released
-  return (prevNonMod != 0) && (currNonMod == 0);
+uint32_t ChordingEngine::getNonModifierKeys(uint32_t keyMask) const {
+    return keyMask & ~modifierKeyMask;
 }
 
 //==============================================================================
 // QUERY FUNCTIONS
 //==============================================================================
 
-int ChordingEngine::getChordCount() {
-  int count = 0;
-  ChordPattern* current = chordList;
-  while (current) {
-    count++;
-    current = current->next;
-  }
-  return count;
+int ChordingEngine::getChordCount() const {
+    int count = 0;
+    ChordPattern* current = chordList;
+    while (current) {
+        count++;
+        current = current->next;
+    }
+    return count;
 }
 
-bool ChordingEngine::isChordDefined(uint32_t keyMask) {
-  return findChordPattern(keyMask) != nullptr;
+bool ChordingEngine::isChordDefined(uint32_t keyMask) const {
+    return findChordPattern(keyMask) != nullptr;
 }
 
-const char* ChordingEngine::getChordMacro(uint32_t keyMask) {
-  ChordPattern* pattern = findChordPattern(keyMask);
-  return pattern ? pattern->macroSequence : nullptr;
+const char* ChordingEngine::getChordMacro(uint32_t keyMask) const {
+    ChordPattern* pattern = findChordPattern(keyMask);
+    return pattern ? pattern->macroSequence : nullptr;
 }
 
-void ChordingEngine::forEachChord(void (*callback)(uint32_t keyMask, const char* macro)) {
-  ChordPattern* current = chordList;
-  while (current) {
-    callback(current->keyMask, current->macroSequence);
-    current = current->next;
-  }
+bool ChordingEngine::isSwitchUsedInChords(uint8_t switchIndex) const {
+    if (switchIndex >= NUM_SWITCHES) return false;
+    return (chordSwitchesMask & (1UL << switchIndex)) != 0;
 }
 
-uint8_t ChordingEngine::countBits(uint32_t mask) {
-  uint8_t count = 0;
-  while (mask) {
-    count += mask & 1;
-    mask >>= 1;
-  }
-  return count;
+void ChordingEngine::forEachChord(void (*callback)(uint32_t keyMask, const char* macro)) const {
+    ChordPattern* current = chordList;
+    while (current) {
+        if (callback) {
+            callback(current->keyMask, current->macroSequence);
+        }
+        current = current->next;
+    }
 }
 
 //==============================================================================
@@ -423,13 +372,11 @@ uint8_t ChordingEngine::countBits(uint32_t mask) {
 //==============================================================================
 
 void setupChording() {
-  // Chording engine initializes itself
-  // Load chords from EEPROM if available
-  chording.loadChords();
+    // Chording engine initializes itself
 }
 
 bool processChording(uint32_t currentSwitchState) {
-  return chording.processChording(currentSwitchState);
+    return chording.processChording(currentSwitchState);
 }
 
 //==============================================================================
@@ -437,43 +384,43 @@ bool processChording(uint32_t currentSwitchState) {
 //==============================================================================
 
 uint32_t parseKeyList(const char* keyList) {
-  if (!keyList) return 0;
-  
-  uint32_t mask = 0;
-  const char* pos = keyList;
-  
-  while (*pos) {
-    // Skip whitespace and separators
-    while (*pos && (*pos == ' ' || *pos == ',' || *pos == '+')) pos++;
+    if (!keyList) return 0;
     
-    if (*pos) {
-      // Parse key number
-      int keyNum = 0;
-      while (*pos >= '0' && *pos <= '9') {
-        keyNum = keyNum * 10 + (*pos - '0');
-        pos++;
-      }
-      
-      if (keyNum >= 0 && keyNum < NUM_SWITCHES) {
-        mask |= (1UL << keyNum);
-      }
+    uint32_t mask = 0;
+    const char* pos = keyList;
+    
+    while (*pos) {
+        // Skip whitespace and separators
+        while (*pos && (*pos == ' ' || *pos == ',' || *pos == '+')) pos++;
+        
+        if (*pos) {
+            // Parse key number
+            int keyNum = 0;
+            while (*pos >= '0' && *pos <= '9') {
+                keyNum = keyNum * 10 + (*pos - '0');
+                pos++;
+            }
+            
+            if (keyNum >= 0 && keyNum < NUM_SWITCHES) {
+                mask |= (1UL << keyNum);
+            }
+        }
     }
-  }
-  
-  return mask;
+    
+    return mask;
 }
 
 String formatKeyMask(uint32_t keyMask) {
-  String result = "";
-  bool first = true;
-  
-  for (int i = 0; i < NUM_SWITCHES; i++) {
-    if (keyMask & (1UL << i)) {
-      if (!first) result += "+";
-      result += String(i);
-      first = false;
+    String result = "";
+    bool first = true;
+    
+    for (int i = 0; i < NUM_SWITCHES; i++) {
+        if (keyMask & (1UL << i)) {
+            if (!first) result += "+";
+            result += String(i);
+            first = false;
+        }
     }
-  }
-  
-  return result.length() > 0 ? result : String("none");
+    
+    return result.length() > 0 ? result : String("none");
 }

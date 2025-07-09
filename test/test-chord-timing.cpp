@@ -8,7 +8,6 @@
  */
 
 #include "Arduino.h"
-#include "Keyboard.h"
 #include "EEPROM.h"
 #include "micro-test.h"
 
@@ -22,12 +21,6 @@
 #include <iostream>
 #include <vector>
 #include <string>
-
-MockKeyboard Keyboard;
-
-//==============================================================================
-// TEST HELPER FUNCTIONS
-//==============================================================================
 
 void setupTestEnvironment() {
     // Clear all state

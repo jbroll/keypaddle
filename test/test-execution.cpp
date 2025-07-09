@@ -4,7 +4,6 @@
  */
 
 #include "Arduino.h"
-#include "Keyboard.h"
 #include "micro-test.h"
 
 // Include the actual implementation files from parent directory
@@ -14,8 +13,6 @@
 
 #include <iostream>
 #include <cstring>
-
-MockKeyboard Keyboard;
 
 //==============================================================================
 // ENCODE->EXECUTE TEST FUNCTION

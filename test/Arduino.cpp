@@ -4,6 +4,9 @@
  */
 
 #include "Arduino.h"
+#include "Serial.cpp"
+#include "Keyboard.cpp"
+#include "EEPROM.cpp"
 
 //==============================================================================
 // ARDUINO MEMORY MANAGEMENT SYMBOLS DEFINITIONS
