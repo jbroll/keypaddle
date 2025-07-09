@@ -1,11 +1,7 @@
 /*
- * Chord State Machine Testing - FIXED VERSION
+ * Chord State Machine Testing - Complete with All 15 Tests
  * 
- * FIXES:
- * 1. Better test isolation and state verification
- * 2. More accurate state transition testing
- * 3. Proper timing simulation for cancellation
- * 4. Enhanced debugging for pattern adjustment
+ * Uses controllable time for reliable testing of timing-dependent logic
  */
 
 #include "Arduino.h"
@@ -36,6 +32,9 @@ void setupTestEnvironment() {
     EEPROM.clear();
     Keyboard.clearActions();
     
+    // Reset time control to real time for each test (unless test overrides)
+    TestTimeControl::useRealTime();
+    
     // Clear all macros
     for (int i = 0; i < NUM_SWITCHES; i++) {
         if (macros[i].downMacro) {
@@ -56,7 +55,7 @@ void setupTestEnvironment() {
     chording.clearAllChords();
     chording.clearAllModifiers();
     
-    // CRITICAL: Force reset by processing all keys released
+    // Force reset by processing all keys released
     processChording(0x00);
     lastDebugState = chording.getCurrentState();
 }
@@ -92,162 +91,20 @@ void addTestMacro(int keyIndex, const std::string& macroCommand) {
     }
 }
 
-// Enhanced debugging function
-void debugStateChange(const std::string& context) {
-    ChordState currentState = chording.getCurrentState();
-    if (currentState != lastDebugState) {
-        std::cout << context << ": State change " << lastDebugState << " -> " << currentState << std::endl;
-        lastDebugState = currentState;
-    }
-}
-
-// Process multiple switch events with debugging
-std::vector<ChordState> processSequenceWithStates(const std::vector<uint32_t>& sequence, const std::string& testName) {
-    std::vector<ChordState> states;
-    
-    for (size_t i = 0; i < sequence.size(); i++) {
-        processChording(sequence[i]);
-        ChordState state = chording.getCurrentState();
-        states.push_back(state);
-        
-        std::cout << testName << " step " << i << ": switches=0x" << std::hex << sequence[i] 
-                  << std::dec << " -> state=" << state << std::endl;
-    }
-    
-    return states;
-}
-
 //==============================================================================
-// FIXED TEST IMPLEMENTATIONS
+// BASIC STATE TRANSITION TESTS
 //==============================================================================
 
-void testCancellationToIdle(const TestCase& test) {
-    setupTestEnvironment();
-    
-    // Setup and enter cancellation
-    addTestChord(0x06, "\"hello\"");     // Keys 1+2
-    addTestMacro(5, "\"world\"");        // Key 5 individual
-    
-    std::cout << "\n=== CANCELLATION TO IDLE TEST ===" << std::endl;
-    
-    // Step 1: Start building chord
-    processChording(0x02);  // Key 1
-    ASSERT_EQ(chording.getCurrentState(), CHORD_BUILDING, "Should be in CHORD_BUILDING after key 1");
-    
-    // Step 2: Enter cancellation by pressing non-chord key
-    processChording(0x22);  // Keys 1+5 (key 5 is non-chord)
-    ASSERT_EQ(chording.getCurrentState(), CHORD_CANCELLATION, "Should be in CANCELLATION after non-chord key");
-    
-    // Step 3: Release non-chord key but keep chord key - should STAY in cancellation
-    processChording(0x02);  // Release key 5, keep key 1
-    
-    // DEBUG: Check what state we're actually in
-    ChordState actualState = chording.getCurrentState();
-    std::cout << "After releasing non-chord key: state=" << actualState << " (expected: " << CHORD_CANCELLATION << ")" << std::endl;
-    
-    ASSERT_EQ(actualState, CHORD_CANCELLATION, "Should still be in CANCELLATION after releasing non-chord key");
-    
-    // Step 4: Only when ALL keys are released should we go to IDLE
-    processChording(0x00);  // Release all keys
-    ASSERT_EQ(chording.getCurrentState(), CHORD_IDLE, "Should return to IDLE only when all keys released");
-}
-
-void testExecutionWindowPatternAdjustment(const TestCase& test) {
-    setupTestEnvironment();
-    
-    std::cout << "\n=== PATTERN ADJUSTMENT TEST ===" << std::endl;
-    
-    // Add chords for different patterns
-    addTestChord(0x06, "\"two\"");    // Keys 1+2 (0x06)
-    addTestChord(0x0C, "\"three\"");  // Keys 2+3 (0x0C)
-    
-    // Build 3-key pattern by pressing 1, then 2, then 3
-    std::vector<uint32_t> sequence = {
-        0x02,  // Key 1 pressed (bit 1)
-        0x06,  // Keys 1+2 pressed (bits 1+2)
-        0x0E,  // Keys 1+2+3 pressed (bits 1+2+3)
-        0x0C,  // Release key 1, keep 2+3 (bits 2+3 = 0x0C)
-    };
-    
-    auto states = processSequenceWithStates(sequence, "PatternAdjust");
-    
-    ASSERT_EQ(chording.getCurrentChord(), 0x0E, "Should capture all three keys initially");
-    
-    // Set very short execution window to force timeout
-    chording.setExecutionWindowMs(1);
-    
-    // Simulate execution window timeout by calling processChording again
-    // This should trigger pattern adjustment to the remaining keys
-    processChording(0x0C);  // Process again with keys 2+3
-    
-    uint32_t adjustedPattern = chording.getCurrentChord();
-    std::cout << "Pattern after adjustment: 0x" << std::hex << adjustedPattern << " (expected: 0x0C)" << std::dec << std::endl;
-    
-    ASSERT_EQ(adjustedPattern, 0x0C, "Should update pattern to remaining keys 2+3");
-}
-
-void testSuppressionInCancellationState(const TestCase& test) {
-    setupTestEnvironment();
-    
-    std::cout << "\n=== SUPPRESSION IN CANCELLATION TEST ===" << std::endl;
-    
-    addTestChord(0x06, "\"chord\"");
-    addTestMacro(5, "\"individual\"");
-    
-    // Enter cancellation state
-    processChording(0x02);  // Chord key
-    ASSERT_EQ(chording.getCurrentState(), CHORD_BUILDING, "Should start building");
-    
-    processChording(0x22);  // Add individual key (triggers cancellation)
-    ChordState stateAfterCancellation = chording.getCurrentState();
-    std::cout << "State after adding non-chord key: " << stateAfterCancellation << std::endl;
-    
-    ASSERT_EQ(stateAfterCancellation, CHORD_CANCELLATION, "Should be in cancellation");
-    
-    // Try to press another individual key - should stay in cancellation
-    processChording(0x62);  // Add key 6 (bit 6 = 0x40, so 0x22 + 0x40 = 0x62)
-    
-    bool suppressed = chording.getCurrentState() != CHORD_IDLE;
-    ASSERT_TRUE(suppressed, "All keys should be suppressed in CANCELLATION state");
-    
-    ChordState finalState = chording.getCurrentState();
-    std::cout << "Final state: " << finalState << " (should still be " << CHORD_CANCELLATION << ")" << std::endl;
-    ASSERT_EQ(finalState, CHORD_CANCELLATION, "Should remain in CANCELLATION state");
-}
-
-void testCancellationRecovery(const TestCase& test) {
-    setupTestEnvironment();
-    
-    std::cout << "\n=== CANCELLATION RECOVERY TEST ===" << std::endl;
-    
-    addTestChord(0x06, "\"chord\"");
-    addTestMacro(5, "\"individual\"");
-    
-    // Build chord, trigger cancellation
-    processChording(0x02);  // Chord key
-    processChording(0x22);  // Trigger cancellation with key 5
-    
-    ChordState cancellationState = chording.getCurrentState();
-    std::cout << "State after triggering cancellation: " << cancellationState << std::endl;
-    ASSERT_EQ(cancellationState, CHORD_CANCELLATION, "Should be in cancellation");
-    
-    // Release everything
-    processChording(0x00);
-    ASSERT_EQ(chording.getCurrentState(), CHORD_IDLE, "Should recover to IDLE");
-    
-    // Should be able to start new chord immediately
-    processChording(0x02);
-    ASSERT_EQ(chording.getCurrentState(), CHORD_BUILDING, "Should be able to start new chord");
-}
-
-// Keep other tests unchanged but add debug info
 void testIdleToChordBuilding(const TestCase& test) {
     setupTestEnvironment();
     
+    // Add a test chord
     addTestChord(0x06, "\"hello\"");  // Keys 1+2
     
+    // Start in IDLE state
     ASSERT_EQ(chording.getCurrentState(), CHORD_IDLE, "Should start in IDLE state");
     
+    // Press a chord key
     bool suppressed = chording.processChording(0x02);  // Key 1
     
     ASSERT_EQ(chording.getCurrentState(), CHORD_BUILDING, "Should transition to CHORD_BUILDING");
@@ -258,13 +115,16 @@ void testIdleToChordBuilding(const TestCase& test) {
 void testChordBuildingToIdle(const TestCase& test) {
     setupTestEnvironment();
     
+    // Add a test chord
     addTestChord(0x06, "\"hello\"");  // Keys 1+2
     
+    // Build a chord
     chording.processChording(0x02);  // Key 1
     chording.processChording(0x06);  // Keys 1+2
     
     ASSERT_EQ(chording.getCurrentState(), CHORD_BUILDING, "Should be in CHORD_BUILDING");
     
+    // Release all keys
     chording.processChording(0x00);
     
     ASSERT_EQ(chording.getCurrentState(), CHORD_IDLE, "Should return to IDLE");
@@ -274,25 +134,316 @@ void testChordBuildingToIdle(const TestCase& test) {
 void testChordBuildingToCancellation(const TestCase& test) {
     setupTestEnvironment();
     
+    // Add a test chord and individual macro
     addTestChord(0x06, "\"hello\"");     // Keys 1+2
     addTestMacro(5, "\"world\"");        // Key 5 individual
     
+    // Start building chord
     chording.processChording(0x02);  // Key 1
     ASSERT_EQ(chording.getCurrentState(), CHORD_BUILDING, "Should be in CHORD_BUILDING");
     
+    // Press non-chord key
     bool suppressed = chording.processChording(0x22);  // Keys 1+5
     
     ASSERT_EQ(chording.getCurrentState(), CHORD_CANCELLATION, "Should transition to CANCELLATION");
     ASSERT_TRUE(suppressed, "Should suppress individual key processing");
 }
 
-// Placeholder tests that are working
-void testBasicChordTiming(const TestCase& test) { ASSERT_TRUE(true, "Placeholder - timing test"); }
-void testExecutionWindowTrigger(const TestCase& test) { ASSERT_TRUE(true, "Placeholder - window trigger test"); }
-void testExecutionWindowChordExecution(const TestCase& test) { ASSERT_TRUE(true, "Placeholder - window execution test"); }
-void testModifierKeyHandling(const TestCase& test) { ASSERT_TRUE(true, "Placeholder - modifier test"); }
-void testModifierNotTriggeringCancellation(const TestCase& test) { ASSERT_TRUE(true, "Placeholder - modifier cancellation test"); }
-void testComplexChordAdjustment(const TestCase& test) { ASSERT_TRUE(true, "Placeholder - complex adjustment test"); }
+void testCancellationToIdle(const TestCase& test) {
+    setupTestEnvironment();
+    
+    // Setup and enter cancellation
+    addTestChord(0x06, "\"hello\"");
+    addTestMacro(5, "\"world\"");
+    
+    chording.processChording(0x02);  // Key 1
+    chording.processChording(0x22);  // Keys 1+5 (triggers cancellation)
+    
+    ASSERT_EQ(chording.getCurrentState(), CHORD_CANCELLATION, "Should be in CANCELLATION");
+    
+    // Release all keys
+    chording.processChording(0x00);
+    
+    ASSERT_EQ(chording.getCurrentState(), CHORD_IDLE, "Should return to IDLE");
+}
+
+//==============================================================================
+// EXECUTION WINDOW TESTS
+//==============================================================================
+
+void testExecutionWindowTrigger(const TestCase& test) {
+    setupTestEnvironment();
+    
+    // Add a test chord
+    addTestChord(0x06, "\"hello\"");  // Keys 1+2
+    
+    // Build chord
+    chording.processChording(0x02);  // Key 1
+    chording.processChording(0x06);  // Keys 1+2
+    
+    ASSERT_FALSE(chording.isExecutionWindowActive(), "Execution window should not be active yet");
+    
+    // Release one key to trigger execution window
+    chording.processChording(0x04);  // Release key 1, keep key 2
+    
+    ASSERT_TRUE(chording.isExecutionWindowActive(), "Execution window should be active after key release");
+}
+
+void testExecutionWindowChordExecution(const TestCase& test) {
+    setupTestEnvironment();
+    
+    // Add a test chord
+    addTestChord(0x06, "\"hello\"");  // Keys 1+2
+    
+    // Build and release chord quickly (within execution window)
+    chording.processChording(0x02);  // Key 1
+    chording.processChording(0x06);  // Keys 1+2
+    chording.processChording(0x04);  // Release key 1 (start execution window)
+    
+    Keyboard.clearActions();
+    chording.processChording(0x00);  // Release all keys within window
+    
+    std::string output = Keyboard.toString();
+    ASSERT_TRUE(output.find("write h") != std::string::npos, "Should execute chord macro");
+    ASSERT_EQ(chording.getCurrentState(), CHORD_IDLE, "Should return to IDLE after execution");
+}
+
+void testExecutionWindowPatternAdjustment(const TestCase& test) {
+    setupTestEnvironment();
+    
+    // Use controlled time for this test
+    TestTimeControl::setTime(1000);
+    
+    // Add chords for different patterns
+    addTestChord(0x06, "\"two\"");    // Keys 1+2
+    addTestChord(0x0C, "\"three\"");  // Keys 2+3
+    
+    // Set execution window duration
+    chording.setExecutionWindowMs(50);
+    
+    // Build 3-key pattern
+    chording.processChording(0x02);  // Key 1
+    chording.processChording(0x06);  // Keys 1+2
+    chording.processChording(0x0E);  // Keys 1+2+3
+    
+    ASSERT_EQ(chording.getCurrentChord(), 0x0E, "Should capture all three keys");
+    
+    // Release key 1 and start execution window
+    chording.processChording(0x0C);  // Keys 2+3 remain
+    ASSERT_TRUE(chording.isExecutionWindowActive(), "Execution window should be active");
+    
+    // Advance time past execution window
+    TestTimeControl::advanceTime(60);  // 60ms > 50ms window
+    
+    // Process again to trigger timeout handling
+    chording.processChording(0x0C);  // Same keys
+    
+    // The pattern should now be updated to the remaining keys (2+3)
+    ASSERT_EQ(chording.getCurrentChord(), 0x0C, "Should update pattern to remaining keys 2+3");
+    
+    // Reset time control
+    TestTimeControl::useRealTime();
+}
+
+//==============================================================================
+// CANCELLATION TIMEOUT TESTS
+//==============================================================================
+
+void testCancellationTimeout(const TestCase& test) {
+    setupTestEnvironment();
+    
+    // Use controlled time
+    TestTimeControl::setTime(1000);
+    
+    // Setup
+    addTestChord(0x06, "\"hello\"");
+    addTestMacro(5, "\"world\"");
+    
+    // Enter cancellation state
+    chording.processChording(0x02);  // Key 1
+    chording.processChording(0x22);  // Keys 1+5 (cancellation)
+    chording.processChording(0x02);  // Release key 5, keep key 1
+    
+    ASSERT_EQ(chording.getCurrentState(), CHORD_CANCELLATION, "Should be in CANCELLATION");
+    
+    // Advance time by 2.1 seconds (past 2-second timeout)
+    TestTimeControl::advanceTime(2100);
+    
+    // Process again to trigger timeout
+    chording.processChording(0x02);  // Same key state
+    
+    ASSERT_EQ(chording.getCurrentState(), CHORD_BUILDING, "Should return to CHORD_BUILDING after timeout");
+    
+    TestTimeControl::useRealTime();
+}
+
+void testCancellationTimeoutWithChordKeys(const TestCase& test) {
+    setupTestEnvironment();
+    
+    // Use controlled time
+    TestTimeControl::setTime(1000);
+    
+    addTestChord(0x06, "\"chord\"");
+    addTestMacro(5, "\"individual\"");
+    
+    // Enter cancellation with chord keys still pressed
+    chording.processChording(0x06);  // Chord keys 1+2
+    chording.processChording(0x26);  // Add key 5 (cancellation)
+    chording.processChording(0x06);  // Release key 5, keep chord keys
+    
+    ASSERT_EQ(chording.getCurrentState(), CHORD_CANCELLATION, "Should be in cancellation");
+    
+    // Advance past timeout
+    TestTimeControl::advanceTime(2100);
+    chording.processChording(0x06);  // Process with chord keys still held
+    
+    ASSERT_EQ(chording.getCurrentState(), CHORD_BUILDING, "Should return to CHORD_BUILDING with keys held");
+    ASSERT_EQ(chording.getCurrentChord(), 0x06, "Should have correct chord pattern");
+    
+    TestTimeControl::useRealTime();
+}
+
+//==============================================================================
+// INDIVIDUAL KEY SUPPRESSION TESTS
+//==============================================================================
+
+void testIndividualKeySuppression(const TestCase& test) {
+    setupTestEnvironment();
+    
+    // Add individual macro
+    addTestMacro(5, "\"individual\"");
+    addTestChord(0x06, "\"chord\"");  // Keys 1+2
+    
+    // Individual key should work in IDLE state
+    bool suppressed = chording.processChording(0x20);  // Key 5
+    ASSERT_FALSE(suppressed, "Individual key should not be suppressed in IDLE");
+    
+    chording.processChording(0x00);  // Release
+    
+    // Individual key should be suppressed when chord keys are pressed
+    chording.processChording(0x02);  // Chord key 1
+    suppressed = chording.processChording(0x22);  // Add individual key 5
+    ASSERT_TRUE(suppressed, "Individual key should be suppressed during chord building");
+}
+
+void testSuppressionInCancellationState(const TestCase& test) {
+    setupTestEnvironment();
+    
+    addTestChord(0x06, "\"chord\"");
+    addTestMacro(5, "\"individual\"");
+    
+    // Enter cancellation state
+    chording.processChording(0x02);  // Chord key
+    chording.processChording(0x22);  // Add individual key (triggers cancellation)
+    
+    ASSERT_EQ(chording.getCurrentState(), CHORD_CANCELLATION, "Should be in cancellation");
+    
+    // Try to press another individual key
+    bool suppressed = chording.processChording(0x62);  // Add key 6
+    ASSERT_TRUE(suppressed, "All keys should be suppressed in CANCELLATION state");
+    ASSERT_EQ(chording.getCurrentState(), CHORD_CANCELLATION, "Should remain in CANCELLATION state");
+}
+
+//==============================================================================
+// MODIFIER KEY TESTS
+//==============================================================================
+
+void testModifierKeyHandling(const TestCase& test) {
+    setupTestEnvironment();
+    
+    // Set up modifier and chord
+    chording.setModifierKey(7, true);
+    addTestChord(0x86, "\"modified\"");  // Keys 1+7 (7 is modifier)
+    
+    // Press chord with modifier
+    chording.processChording(0x02);  // Key 1
+    chording.processChording(0x82);  // Keys 1+7
+    
+    // Release non-modifier key (key 1) but keep modifier pressed
+    chording.processChording(0x80);  // Only key 7 (modifier) pressed
+    
+    // Should trigger chord execution even though modifier is still held
+    Keyboard.clearActions();
+    chording.processChording(0x00);  // Release modifier
+    
+    ASSERT_EQ(chording.getCurrentState(), CHORD_IDLE, "Should return to IDLE after chord");
+}
+
+void testModifierNotTriggeringCancellation(const TestCase& test) {
+    setupTestEnvironment();
+    
+    // Set up modifier
+    chording.setModifierKey(7, true);
+    addTestChord(0x06, "\"chord\"");  // Keys 1+2
+    
+    // Start building chord
+    chording.processChording(0x02);  // Key 1
+    ASSERT_EQ(chording.getCurrentState(), CHORD_BUILDING, "Should be building");
+    
+    // Press modifier key - should not trigger cancellation
+    chording.processChording(0x82);  // Keys 1+7 (modifier)
+    ASSERT_EQ(chording.getCurrentState(), CHORD_BUILDING, "Modifier should not trigger cancellation");
+}
+
+//==============================================================================
+// COMPLEX SCENARIO TESTS
+//==============================================================================
+
+void testComplexChordAdjustment(const TestCase& test) {
+    setupTestEnvironment();
+    
+    // Use controlled time
+    TestTimeControl::setTime(1000);
+    
+    // Set up multiple chord patterns
+    addTestChord(0x06, "\"ab\"");     // Keys 1+2
+    addTestChord(0x0E, "\"abc\"");    // Keys 1+2+3
+    addTestChord(0x1E, "\"abcd\"");   // Keys 1+2+3+4
+    
+    chording.setExecutionWindowMs(50);
+    
+    // Build complex pattern and adjust down
+    chording.processChording(0x02);  // Key 1
+    chording.processChording(0x06);  // Keys 1+2
+    chording.processChording(0x0E);  // Keys 1+2+3
+    chording.processChording(0x1E);  // Keys 1+2+3+4
+    
+    ASSERT_EQ(chording.getCurrentChord(), 0x1E, "Should capture full pattern");
+    
+    // Start releasing keys
+    chording.processChording(0x0E);  // Release key 4
+    ASSERT_TRUE(chording.isExecutionWindowActive(), "Should start execution window");
+    
+    // Let execution window expire to adjust pattern
+    TestTimeControl::advanceTime(60);
+    chording.processChording(0x0E);  // Process with 3 keys
+    
+    ASSERT_EQ(chording.getCurrentChord(), 0x0E, "Should adjust to 3-key pattern");
+    
+    TestTimeControl::useRealTime();
+}
+
+void testCancellationRecovery(const TestCase& test) {
+    setupTestEnvironment();
+    
+    addTestChord(0x06, "\"chord\"");
+    addTestMacro(5, "\"individual\"");
+    
+    // Build chord, trigger cancellation, then recover
+    chording.processChording(0x02);  // Chord key
+    chording.processChording(0x22);  // Trigger cancellation
+    
+    ASSERT_EQ(chording.getCurrentState(), CHORD_CANCELLATION, "Should be in cancellation");
+    
+    // Release everything
+    chording.processChording(0x00);
+    
+    ASSERT_EQ(chording.getCurrentState(), CHORD_IDLE, "Should recover to IDLE");
+    
+    // Should be able to start new chord immediately
+    chording.processChording(0x02);
+    ASSERT_EQ(chording.getCurrentState(), CHORD_BUILDING, "Should be able to start new chord");
+}
 
 //==============================================================================
 // TEST CASE DEFINITIONS AND RUNNER
@@ -300,28 +451,32 @@ void testComplexChordAdjustment(const TestCase& test) { ASSERT_TRUE(true, "Place
 
 std::vector<std::pair<TestCase, void(*)(const TestCase&)>> createChordStateTests() {
     return {
-        // Basic state transitions (working)
+        // Basic state transitions
         {TestCase("IDLE to CHORD_BUILDING transition", "", EXPECT_PASS), testIdleToChordBuilding},
         {TestCase("CHORD_BUILDING to IDLE transition", "", EXPECT_PASS), testChordBuildingToIdle},
         {TestCase("CHORD_BUILDING to CANCELLATION transition", "", EXPECT_PASS), testChordBuildingToCancellation},
-        
-        // FIXED: The failing tests with enhanced debugging
         {TestCase("CANCELLATION to IDLE transition", "", EXPECT_PASS), testCancellationToIdle},
-        {TestCase("Execution window pattern adjustment", "", EXPECT_PASS), testExecutionWindowPatternAdjustment},
-        {TestCase("Suppression in cancellation state", "", EXPECT_PASS), testSuppressionInCancellationState},
-        {TestCase("Cancellation recovery", "", EXPECT_PASS), testCancellationRecovery},
         
-        // Working tests (placeholders)
-        {TestCase("Basic chord timing", "", EXPECT_PASS), testBasicChordTiming},
+        // Execution window tests
         {TestCase("Execution window trigger", "", EXPECT_PASS), testExecutionWindowTrigger},
         {TestCase("Execution window chord execution", "", EXPECT_PASS), testExecutionWindowChordExecution},
+        {TestCase("Execution window pattern adjustment", "", EXPECT_PASS), testExecutionWindowPatternAdjustment},
+        
+        // Cancellation timeout tests
+        {TestCase("Cancellation timeout", "", EXPECT_PASS), testCancellationTimeout},
+        {TestCase("Cancellation timeout with chord keys", "", EXPECT_PASS), testCancellationTimeoutWithChordKeys},
+        
+        // Individual key suppression
+        {TestCase("Individual key suppression", "", EXPECT_PASS), testIndividualKeySuppression},
+        {TestCase("Suppression in cancellation state", "", EXPECT_PASS), testSuppressionInCancellationState},
+        
+        // Modifier key handling
         {TestCase("Modifier key handling", "", EXPECT_PASS), testModifierKeyHandling},
         {TestCase("Modifier not triggering cancellation", "", EXPECT_PASS), testModifierNotTriggeringCancellation},
-        {TestCase("Complex chord adjustment", "", EXPECT_PASS), testComplexChordAdjustment},
         
-        // Add 2 more placeholder tests to get to 15 total
-        {TestCase("Placeholder test 1", "", EXPECT_PASS), [](const TestCase& test) { ASSERT_TRUE(true, "Placeholder"); }},
-        {TestCase("Placeholder test 2", "", EXPECT_PASS), [](const TestCase& test) { ASSERT_TRUE(true, "Placeholder"); }},
+        // Complex scenarios
+        {TestCase("Complex chord adjustment", "", EXPECT_PASS), testComplexChordAdjustment},
+        {TestCase("Cancellation recovery", "", EXPECT_PASS), testCancellationRecovery},
     };
 }
 
@@ -345,6 +500,19 @@ int main(int argc, char* argv[]) {
     
     std::cout << std::endl;
     runner.printSummary();
+    
+    if (verbose) {
+        std::cout << std::endl << "Test Coverage:" << std::endl;
+        std::cout << "- State machine transitions (IDLE ↔ CHORD_BUILDING ↔ CANCELLATION)" << std::endl;
+        std::cout << "- Execution window behavior and timing" << std::endl;
+        std::cout << "- Pattern adjustment during release" << std::endl;
+        std::cout << "- Individual key suppression logic" << std::endl;
+        std::cout << "- Modifier key special handling" << std::endl;
+        std::cout << "- Cancellation timeout handling" << std::endl;
+        std::cout << "- Complex multi-step scenarios" << std::endl;
+        std::cout << std::endl;
+        std::cout << "Uses controllable time for reliable timeout testing" << std::endl;
+    }
     
     return runner.allPassed() ? 0 : 1;
 }

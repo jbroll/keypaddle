@@ -1,5 +1,5 @@
 /*
- * Minimal Arduino Mocking for Linux Testing
+ * Minimal Arduino Mocking for Linux Testing - WITH CONTROLLABLE TIME
  * Provides just enough Arduino compatibility to test macro encode/decode
  */
 
@@ -28,13 +28,64 @@ typedef const char* __FlashStringHelper;
 #define HEX 16
 #define DEC 10
 
-inline uint32_t millis() {
-    using namespace std::chrono;
+//==============================================================================
+// CONTROLLABLE TIME FOR TESTING
+//==============================================================================
 
-    static auto start_time = std::chrono::steady_clock::now();
-    auto now = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time);
-    return static_cast<uint32_t>(duration.count());
+class TestTimeControl {
+private:
+    static uint32_t currentTime;     // Declaration only
+    static bool useControlledTime;   // Declaration only
+    
+public:
+    // Set absolute time value
+    static void setTime(uint32_t time) {
+        currentTime = time;
+        useControlledTime = true;
+    }
+    
+    // Advance time by delta milliseconds
+    static void advanceTime(uint32_t deltaMs) {
+        currentTime += deltaMs;
+        useControlledTime = true;
+    }
+    
+    // Get current controlled time
+    static uint32_t getTime() {
+        return currentTime;
+    }
+    
+    // Reset to real-time mode
+    static void useRealTime() {
+        useControlledTime = false;
+    }
+    
+    // Check if we're in controlled time mode
+    static bool isControlledTime() {
+        return useControlledTime;
+    }
+    
+    // Internal function called by millis()
+    static uint32_t getCurrentTime() {
+        if (useControlledTime) {
+            return currentTime;
+        } else {
+            // Use real time
+            using namespace std::chrono;
+            static auto start_time = std::chrono::steady_clock::now();
+            auto now = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time);
+            return static_cast<uint32_t>(duration.count());
+        }
+    }
+};
+
+// Static member declarations (defined in Arduino.cpp)
+// Note: These are declared here, defined in Arduino.cpp
+
+// Controllable millis() function
+inline uint32_t millis() {
+    return TestTimeControl::getCurrentTime();
 }
 
 extern int __heap_start;
