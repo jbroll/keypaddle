@@ -78,7 +78,9 @@ void executeUTF8Macro(const uint8_t* bytes, uint16_t length) {
           // Validate function key number (1-12)
           if (keyNum >= 1 && keyNum <= NUM_FUNCTION_KEYS) {
             uint16_t hidCode = FUNCTION_KEY_CODES[keyNum];
-            Keyboard.write(hidCode);
+            Keyboard.press(hidCode);
+
+            Keyboard.release(hidCode);
           }
           // If invalid, silently ignore (as requested)
         }
@@ -87,18 +89,7 @@ void executeUTF8Macro(const uint8_t* bytes, uint16_t length) {
       
       // All other bytes are direct HID codes or printable characters
       default:
-        if (b >= 0x20 && b <= 0x7E) {
-          // Printable ASCII - send directly
-          Keyboard.write(b);
-        } else if (b > 0x7E) {
-          // UTF-8 extended characters - send directly
-          Keyboard.write(b);
-        } else if (b >= 0x04) {
-          // HID key codes (0x04-0x1F range that aren't our control codes)
-          Keyboard.write(b);
-        }
-        // Ignore other control characters (0x00-0x03, etc.)
-        break;
+        Keyboard.write(b);
     }
   }
 }
