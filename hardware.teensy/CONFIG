@@ -2,3 +2,6 @@ FQBN=teensy:avr:teensy2:usb=serialhid
 #PROG=usb2/2-2
 PROG=usb3/3-4
 PORT=/dev/ttyACM0
+
+USB_FLAGS=-DSTR_MANUFACTURER=L\"RollerSoft\" -DSTR_PRODUCT=L\"KeyPaddle\ Teensy\" -DSTR_SERIAL=L\"KeyPaddle001\"
+

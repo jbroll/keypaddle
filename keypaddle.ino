@@ -3,8 +3,6 @@
  * Integrated with unified storage system and comprehensive command interface
  */
 
-#include "usb_strings.h"
-
 #include <Arduino.h>
 #include <Keyboard.h>
 

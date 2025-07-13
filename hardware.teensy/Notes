@@ -1,0 +1,1 @@
+cp /home/john/.arduino15/packages/teensy/hardware/avr/1.59.0/cores/usb_serial_hid/usb_private.h hardware/.
